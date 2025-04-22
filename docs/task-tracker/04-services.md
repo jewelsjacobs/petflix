@@ -74,6 +74,8 @@ High
 
 Replace the deprecated `ffmpeg-kit-react-native` library with `react-native-video-manager` for video stitching.
 
+**Note:** This approach is being abandoned. `react-native-video-manager` proved unstable during testing (crashes). We are now evaluating cloud-based solutions like Shotstack.
+
 #### Dependencies
 
 - [x] Research alternative video stitching libraries
@@ -89,7 +91,7 @@ High
 - [x] Install the package: `npm install react-native-video-manager` or `yarn add react-native-video-manager`
 - [x] Update the `stitchVideos` function in `services/VideoStitcher.ts` to use `VideoManager.merge`.
 - [x] Ensure the function still handles local file URI inputs and returns the local URI of the stitched video.
-- [ ] Remove `ffmpeg-kit-react-native` dependency.
+- [x] Remove `ffmpeg-kit-react-native` dependency.
 - [ ] Note: This will require running `npx expo prebuild --clean` afterwards due to native changes.
 
 ### Task: Voice Narration Implementation
@@ -113,4 +115,35 @@ High
 - [-] Implement API calls to generate narration audio - Skipped (Requires API)
 - [-] Combine narration with video (or request this from the API) - Skipped (Requires API)
 - [-] Test narration quality and synchronization - Skipped (Requires testing)
-- [-] Implement fallback texts if narration fails - Skipped (Requires API) 
+- [-] Implement fallback texts if narration fails - Skipped (Requires API)
+
+### Task: Evaluate Shotstack Cloud Video Stitching API
+
+#### Description
+
+Investigate and evaluate the Shotstack cloud video editing API as a potential replacement for on-device video stitching, due to instability issues with `react-native-video-manager`.
+
+#### Dependencies
+
+- [ ] Research on cloud-based video stitching alternatives completed.
+
+#### Priority
+
+High
+
+#### Instructions
+
+- [ ] Sign up for Shotstack sandbox account.
+- [x] Review Shotstack API documentation for stitching functionality, pricing, and limitations.
+- [x] Update `VideoStitcher.ts` service (or create a new one) to interact with the Shotstack API. (Initial implementation done, renamed to `stitchVideosWithShotstack`)
+- [ ] Implement a basic proof-of-concept:
+    - [ ] Ensure input video URIs are publicly accessible URLs (or implement upload step).
+    - [ ] **Test video duration dependency:** Verify if Shotstack auto-detects length when `length` property is omitted from API call. (Current state)
+    - [ ] If auto-detect fails, implement duration fetching (e.g., using `expo-video-metadata` or another method).
+    - [ ] Trigger stitching job via API using `stitchVideosWithShotstack`.
+    - [ ] Monitor job status (polling is implemented).
+    - [ ] Verify the resulting stitched video URL works.
+- [ ] Assess performance, cost implications, and integration complexity.
+- [ ] Decide if Shotstack is the preferred solution and update relevant tasks.
+- [ ] If chosen, remove `react-native-video-manager` dependency and associated native code/configuration.
+- [ ] If chosen, remove the `ffmpeg-kit-react-native` dependency if it wasn't already removed. 

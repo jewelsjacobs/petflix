@@ -36,30 +36,43 @@
     - [ ] Verify successful video generation and playback for each.
     - [ ] Verify generated videos visually incorporate the corresponding pet images.
 
-### 1.2. Error & Edge Cases
+## 2. Shotstack Stitching API Integration Testing (Manual)
 
-- [ ] Test with API Key / Group ID missing or incorrect in `.env`.
-    - [ ] Verify generation fails immediately with `API_CONFIG_ERROR`.
-    - [ ] Verify user sees an appropriate error message/alert.
-- [ ] Test when API budget is exceeded (Requires manually setting cost in `apiCost.json` or using `CostTracker.resetApiCost` and running calls until limit hit).
-    - [ ] Verify `CostTracker.canMakeApiCall` returns false.
-    - [ ] Verify generation fails with `BUDGET_EXCEEDED`.
-    - [ ] Verify user sees the 'Budget Limit Reached' alert.
-- [ ] Test with network disabled before starting generation.
-    - [ ] Verify generation fails with `NETWORK_CONNECTION_ERROR`.
-    - [ ] Verify user sees an appropriate error message.
-- [ ] Test with network disabled *during* API polling.
-    - [ ] Verify polling fails or times out.
-    - [ ] Verify generation fails with `API_TIMEOUT` or `NETWORK_CONNECTION_ERROR`.
-    - [ ] Verify user sees an appropriate error message.
-- [ ] Test with an invalid image file (e.g., a text file renamed to .jpg).
-    - [ ] Verify generation fails with `IMAGE_LOAD_ERROR` (during Base64 encoding).
-    - [ ] Verify user sees an appropriate error message.
-- [ ] Simulate MiniMax API returning an error during 'Create Task'.
-    - [ ] (Requires code modification or network interception) Verify generation fails with `API_REQUEST_FAILED`.
-- [ ] Simulate MiniMax API returning 'Fail' status during polling.
-    - [ ] (Requires code modification or network interception) Verify generation fails with `VIDEO_GENERATION_FAILED`.
-- [ ] Simulate MiniMax API timing out during polling (exceeding `MAX_POLLING_TIME_MS`).
-    - [ ] (Requires code modification or network interception) Verify generation fails with `API_TIMEOUT`.
-- [ ] Simulate MiniMax API returning an error during 'Retrieve URL'.
-    - [ ] (Requires code modification or network interception) Verify generation fails with `API_REQUEST_FAILED`. 
+**Goal:** Verify the Shotstack video stitching process works correctly for the 5 generated video clips using the `stitchVideosWithShotstack` service function.
+
+- [ ] Test stitching the 5 generated video clip URLs (assuming they are publicly accessible).
+    - [ ] Verify `stitchVideosWithShotstack` is called with 5 URLs.
+    - [ ] Verify Shotstack API key check passes.
+    - [ ] Verify API job submission occurs (Check console logs for 'Submitting render job...' and Render ID).
+    - [ ] Verify status polling occurs (Check console logs for 'Polling Shotstack status...').
+    - [ ] Verify job status eventually becomes 'done' (Check console logs).
+    - [ ] Verify a final video URL is returned (Check console logs).
+    - [ ] Verify the returned URL points to a valid video containing the five input videos concatenated in the correct order.
+    - [ ] Verify the output video duration seems correct (implicitly tests auto-duration detection, as `length` is omitted).
+    - [ ] **If fails (especially duration):** Re-evaluate and potentially implement duration fetching (Task tracker update needed).
+
+### 2.2. Auto-Duration Test
+
+- [ ] Test stitching multiple videos *without* the `length` property explicitly set in the service (current state).
+    - [ ] Verify if the Shotstack job completes successfully.
+    - [ ] Verify the output video duration matches the sum of the input video durations.
+    - [ ] **If fails:** Re-evaluate and implement duration fetching (Task tracker update needed).
+
+### 2.3. Error & Edge Cases
+
+- [ ] Test with Shotstack API Key missing or incorrect in `.env`.
+    - [ ] Verify `stitchVideosWithShotstack` fails immediately with `API_KEY_MISSING`.
+- [ ] Test with invalid input (e.g., empty array, single video URL, non-URL strings).
+    - [ ] Verify `stitchVideosWithShotstack` fails with `INVALID_INPUT` or appropriate error.
+- [ ] Test with non-publicly accessible video URLs (e.g., `file://` URIs, localhost URLs).
+    - [ ] Verify Shotstack job submission *may* succeed but the render job fails (Check console logs for 'failed' status and error reason).
+    - [ ] Verify `stitchVideosWithShotstack` throws `RENDER_FAILED`.
+- [ ] Simulate network error during job submission.
+    - [ ] (Requires network interception) Verify `stitchVideosWithShotstack` fails with a network-related error or `RENDER_SUBMIT_FAILED`.
+- [ ] Simulate network error during status polling.
+    - [ ] (Requires network interception) Verify `stitchVideosWithShotstack` fails with `RENDER_POLL_FAILED` after timeout/retries.
+- [ ] Simulate Shotstack API returning an error during job submission.
+    - [ ] (Requires code modification or network interception) Verify `stitchVideosWithShotstack` fails with `RENDER_SUBMIT_FAILED`.
+- [ ] Simulate Shotstack render job failing on their end (e.g., invalid video format, internal error).
+    - [ ] (May require specific test files or API simulation) Verify polling detects 'failed' status.
+    - [ ] Verify `stitchVideosWithShotstack` throws `RENDER_FAILED` with the reason from Shotstack. 
