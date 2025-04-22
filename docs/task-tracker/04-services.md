@@ -68,6 +68,30 @@ High
     - [x] Ensures temporary files (downloads, intermediate files) are cleaned up.
 - [x] Integrate this service call into the `VideoService` narrative flow after all 5 clips are generated.
 
+### Task: Replace Deprecated Video Stitching Library
+
+#### Description
+
+Replace the deprecated `ffmpeg-kit-react-native` library with `react-native-video-manager` for video stitching.
+
+#### Dependencies
+
+- [x] Research alternative video stitching libraries
+- [x] Install `react-native-video-manager`
+- [x] Update `VideoStitcher.ts` to use the new library
+
+#### Priority
+
+High
+
+#### Instructions
+
+- [x] Install the package: `npm install react-native-video-manager` or `yarn add react-native-video-manager`
+- [x] Update the `stitchVideos` function in `services/VideoStitcher.ts` to use `VideoManager.merge`.
+- [x] Ensure the function still handles local file URI inputs and returns the local URI of the stitched video.
+- [ ] Remove `ffmpeg-kit-react-native` dependency.
+- [ ] Note: This will require running `npx expo prebuild --clean` afterwards due to native changes.
+
 ### Task: Voice Narration Implementation
 
 #### Description
