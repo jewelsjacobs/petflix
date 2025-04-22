@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Platform, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Video, ResizeMode, AVPlaybackStatusSuccess, AVPlaybackStatusError } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -24,19 +24,31 @@ const THEME_DISPLAY_NAMES: { [key: string]: string } = {
 export default function VideoPlaybackScreen() {
   const router = useRouter();
   const { videoUrl, themeId } = useLocalSearchParams<{ videoUrl: string; themeId: string }>();
-  const videoRef = useRef<Video>(null);
-  const [status, setStatus] = useState<AVPlaybackStatusSuccess | null>(null);
+
+  // State for UI elements and derived player state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(1.0);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  const isPlaying = status?.isPlaying ?? false;
-  const durationMillis = status?.durationMillis ?? 0;
-  const positionMillis = status?.positionMillis ?? 0;
+  // --- State derived from player events ---
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false); // Keep local state for UI consistency
+  const [volume, setVolume] = useState(1.0); // Keep local state for slider
+  const [positionMillis, setPositionMillis] = useState(0);
+  const [durationMillis, setDurationMillis] = useState(0);
+  const [isBuffering, setIsBuffering] = useState(false);
+  // ----------------------------------------
+
+  // Initialize the player using the hook
+  const player = useVideoPlayer(videoUrl ?? '', player => {
+    // Initial player setup if needed
+    // player.loop = true;
+    // player.play(); // Don't autoplay initially
+    // player.muted = isMuted;
+    // player.volume = volume;
+  });
 
   const resetControlsTimeout = useCallback(() => {
     if (controlsTimeoutRef.current) {
@@ -49,6 +61,115 @@ export default function VideoPlaybackScreen() {
     }
   }, [showControls]);
 
+  // --- Player Event Listeners --- 
+  useEffect(() => {
+    const subscriptions = [
+      player.addListener('playingChange', (event: any) => {
+        console.log("PLAYING_CHANGE:", event.isPlaying);
+        setIsPlaying(event.isPlaying);
+        if (event.isPlaying) {
+            setIsLoading(false);
+            setIsBuffering(false);
+        }
+        resetControlsTimeout();
+      }),
+      player.addListener('statusChange', (event: any) => {
+          if (event.status === 'loading') {
+              console.log("STATUS_CHANGE: Loading");
+              setIsLoading(true);
+              setError(null);
+          } else if (event.status === 'buffering') {
+              console.log("STATUS_CHANGE: Buffering");
+              setIsBuffering(true);
+              setIsLoading(false);
+          } else if (event.status === 'readyToPlay') {
+              console.log("STATUS_CHANGE: ReadyToPlay");
+              setIsLoading(false);
+              setIsBuffering(false);
+              setDurationMillis(player.duration * 1000);
+          } else if (event.status === 'error') {
+              console.error("Video Player Error (via statusChange):");
+              setError('Video failed to load or play.');
+              setIsLoading(false);
+              setIsBuffering(false);
+          } 
+      }),
+      player.addListener('mutedChange', (event: any) => {
+        console.log("MUTED_CHANGE:", event.isMuted);
+        setIsMuted(event.isMuted);
+        resetControlsTimeout();
+      }),
+      player.addListener('volumeChange', (event: any) => {
+        console.log("VOLUME_CHANGE:", event.volume);
+        setVolume(event.volume);
+        setIsMuted(event.volume === 0);
+        resetControlsTimeout();
+      }),
+      player.addListener('timeUpdate', (event: any) => {
+        setPositionMillis(event.positionSeconds * 1000);
+        if (event.durationSeconds && durationMillis <= 0) {
+            setDurationMillis(event.durationSeconds * 1000);
+        }
+      }),
+    ];
+
+    return () => {
+      subscriptions.forEach(sub => sub.remove());
+    };
+  }, [player, resetControlsTimeout, durationMillis]);
+
+  // --- Controls Logic using player methods ---
+  const togglePlayPause = useCallback(() => {
+    if (isPlaying) {
+      player.pause();
+    } else {
+      player.play();
+    }
+    resetControlsTimeout();
+  }, [player, isPlaying, resetControlsTimeout]);
+
+  const toggleMute = useCallback(() => {
+    player.muted = !player.muted;
+    resetControlsTimeout();
+  }, [player, resetControlsTimeout]);
+
+  const changeVolume = useCallback((value: number) => {
+    player.volume = value;
+    resetControlsTimeout();
+  }, [player, resetControlsTimeout]);
+
+  const seek = useCallback((value: number) => {
+      const newPositionSeconds = value * (player.duration || 0);
+      // Seek by setting currentTime (assuming seconds)
+      player.currentTime = newPositionSeconds;
+      resetControlsTimeout();
+  }, [player, resetControlsTimeout]);
+
+  const seekForward = useCallback((amountSeconds: number = 10) => {
+    const currentPositionSeconds = player.currentTime ?? 0;
+    const newPositionSeconds = Math.min(player.duration || 0, currentPositionSeconds + amountSeconds);
+    // Seek by setting currentTime (assuming seconds)
+    player.currentTime = newPositionSeconds;
+    resetControlsTimeout();
+  }, [player, resetControlsTimeout]);
+
+  const seekBackward = useCallback((amountSeconds: number = 10) => {
+    const currentPositionSeconds = player.currentTime ?? 0;
+    const newPositionSeconds = Math.max(0, currentPositionSeconds - amountSeconds);
+    // Seek by setting currentTime (assuming seconds)
+    player.currentTime = newPositionSeconds;
+    resetControlsTimeout();
+  }, [player, resetControlsTimeout]);
+
+  const handleReplay = useCallback(() => {
+    // Seek to beginning by setting currentTime
+    player.currentTime = 0;
+    player.play(); 
+    resetControlsTimeout();
+  }, [player, resetControlsTimeout]);
+  // ----------------------------------------
+
+  // useEffect for screen orientation (remains mostly the same)
   useEffect(() => {
     const lockOrientation = async () => {
         if (isFullScreen) {
@@ -58,75 +179,8 @@ export default function VideoPlaybackScreen() {
         }
     };
     lockOrientation();
-
-    resetControlsTimeout();
-
-    return () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-    };
-  }, [showControls, isFullScreen, resetControlsTimeout]);
-
-  const handlePlaybackStatusUpdate = useCallback((playbackStatus: AVPlaybackStatusSuccess | AVPlaybackStatusError) => {
-    if (!playbackStatus.isLoaded) {
-      if (playbackStatus.error) {
-        console.error(`Error loading video: ${playbackStatus.error}`);
-        setError(`Error loading video: ${playbackStatus.error}`);
-        setIsLoading(false);
-      }
-    } else {
-      setStatus(playbackStatus);
-      setIsLoading(false);
-      setError(null);
-    }
-  }, []);
-
-  const togglePlayPause = useCallback(async () => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      await videoRef.current.pauseAsync();
-    } else {
-      await videoRef.current.playAsync();
-    }
-    resetControlsTimeout();
-  }, [isPlaying, resetControlsTimeout]);
-
-  const toggleMute = useCallback(async () => {
-    if (!videoRef.current) return;
-    const muted = !isMuted;
-    await videoRef.current.setIsMutedAsync(muted);
-    setIsMuted(muted);
-    if (!muted) {
-      setVolume(1.0);
-    }
-    resetControlsTimeout();
-  }, [isMuted, resetControlsTimeout]);
-
-  const changeVolume = useCallback(async (value: number) => {
-    if (!videoRef.current) return;
-    setVolume(value);
-    await videoRef.current.setVolumeAsync(value);
-    if (value > 0 && isMuted) {
-      setIsMuted(false);
-      await videoRef.current.setIsMutedAsync(false);
-    }
-    resetControlsTimeout();
-  }, [isMuted, resetControlsTimeout]);
-
-  const seekForward = useCallback(async (amountSeconds: number = 10) => {
-    if (!videoRef.current || !status) return;
-    const newPosition = Math.min(durationMillis, positionMillis + amountSeconds * 1000);
-    await videoRef.current.setPositionAsync(newPosition);
-    resetControlsTimeout();
-  }, [status, durationMillis, positionMillis, resetControlsTimeout]);
-
-  const seekBackward = useCallback(async (amountSeconds: number = 10) => {
-    if (!videoRef.current || !status) return;
-    const newPosition = Math.max(0, positionMillis - amountSeconds * 1000);
-    await videoRef.current.setPositionAsync(newPosition);
-    resetControlsTimeout();
-  }, [status, positionMillis, resetControlsTimeout]);
+    // Cleanup timeout ref is handled by the main useEffect
+  }, [isFullScreen]);
 
   const toggleFullScreen = useCallback(async () => {
     const nextFullScreenState = !isFullScreen;
@@ -135,22 +189,14 @@ export default function VideoPlaybackScreen() {
   }, [isFullScreen, resetControlsTimeout]);
 
   const onSliderValueChange = useCallback((value: number) => {
-    if (isPlaying) {
-      videoRef.current?.pauseAsync();
-    }
     resetControlsTimeout();
-  }, [isPlaying, resetControlsTimeout]);
+  }, [resetControlsTimeout]);
 
-  const onSlidingComplete = useCallback(async (value: number) => {
-    if (!videoRef.current || !status) return;
-    const newPosition = value * durationMillis;
-    await videoRef.current.setPositionAsync(newPosition);
-    if (status?.shouldPlay && !isPlaying) {
-      await videoRef.current.playAsync();
-    }
-    resetControlsTimeout();
-  }, [status, durationMillis, isPlaying, resetControlsTimeout]);
+  const onSlidingComplete = useCallback((value: number) => {
+    seek(value);
+  }, [seek]);
 
+  // formatTime remains the same
   const formatTime = useCallback((millis: number): string => {
     if (!millis || millis < 0) return '00:00';
     const totalSeconds = Math.floor(millis / 1000);
@@ -159,6 +205,7 @@ export default function VideoPlaybackScreen() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }, []);
 
+  // handleSharePress remains the same
   const handleSharePress = useCallback(() => {
     console.log('Navigate to Share screen');
     if (videoUrl && themeId) {
@@ -168,15 +215,10 @@ export default function VideoPlaybackScreen() {
     }
   }, [router, videoUrl, themeId]);
 
+  // toggleControls remains the same
   const toggleControls = useCallback(() => {
     setShowControls(currentShowControls => !currentShowControls);
   }, []);
-
-  const handleReplay = useCallback(async () => {
-    if (!videoRef.current) return;
-    await videoRef.current.replayAsync();
-    resetControlsTimeout();
-  }, [resetControlsTimeout]);
 
   const themeDisplayName = themeId ? (THEME_DISPLAY_NAMES[themeId] || 'Unknown Theme') : 'Unknown Theme';
 
@@ -186,22 +228,14 @@ export default function VideoPlaybackScreen() {
       <View style={[styles.safeArea, isFullScreen && styles.fullscreenContainer]}>
         <TouchableOpacity activeOpacity={1} onPress={toggleControls} style={[styles.videoContainer, isFullScreen && styles.fullscreenVideoContainer]}>
           {videoUrl ? (
-            <Video
-              ref={videoRef}
+            // Use VideoView and pass the player instance
+            <VideoView
               style={[styles.video, isFullScreen && styles.fullscreenVideo]}
-              source={{ uri: videoUrl }}
-              useNativeControls={false}
-              resizeMode={ResizeMode.CONTAIN}
-              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-              onError={(error) => {
-                console.error("Video onError:", error);
-                setError(`Playback error: ${error}`);
-                setIsLoading(false);
-              }}
-              onLoadStart={() => setIsLoading(true)}
-              onLoad={() => setIsLoading(false)}
-              volume={volume}
-              isMuted={isMuted}
+              player={player}
+              contentFit={'contain'} // Use string literal based on previous attempt
+              allowsFullscreen // Enable native fullscreen button/behavior (optional)
+              // allowsPictureInPicture // Enable PiP (optional)
+              // Native controls are off by default when providing a player instance
             />
           ) : (
             <View style={styles.errorContainer}>
@@ -209,18 +243,21 @@ export default function VideoPlaybackScreen() {
             </View>
           )}
 
-          {isLoading && (
+          {(isLoading || isBuffering) && (
             <ActivityIndicator style={styles.loadingIndicator} size="large" color={COLORS.white} />
           )}
           {error && !isLoading && (
             <View style={styles.errorContainer}>
               <MaterialIcons name="error-outline" size={48} color={COLORS.pink} />
               <Text style={styles.errorText}>{error}</Text>
+              {/* Optional: Add a retry button? */}
+              {/* <Button title="Retry" onPress={() => player.replace(videoUrl)} /> */}
             </View>
           )}
 
           {showControls && !isLoading && !error && (
             <View style={styles.controlsOverlay}>
+              {/* Top Bar: Theme, HD, Mute, Volume, Fullscreen */}
               <View style={styles.topInfoBar}>
                 <View style={styles.topLeftInfo}>
                   <Text style={styles.themeText}>{themeDisplayName}</Text>
@@ -248,6 +285,7 @@ export default function VideoPlaybackScreen() {
                 </View>
               </View>
               
+              {/* Center Controls: Seek back, Play/Pause, Seek forward */}
               <View style={styles.centerControls}> 
                 <TouchableOpacity onPress={() => seekBackward(10)} style={styles.controlButton}> 
                   <MaterialIcons name="replay-10" size={40} color={COLORS.white} />
@@ -260,6 +298,7 @@ export default function VideoPlaybackScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Bottom Bar: Time, Slider, Duration */}
               <View style={styles.bottomControlBar}>
                 <Text style={styles.timeText}>{formatTime(positionMillis)}</Text>
                 <Slider
@@ -279,7 +318,8 @@ export default function VideoPlaybackScreen() {
           )}
         </TouchableOpacity>
       
-        <View style={[styles.actionButtonsContainer, isFullScreen && { opacity: 0 }]}>
+        {/* Action Buttons: Replay, Share */}
+        <View style={[styles.actionButtonsContainer, isFullScreen && { opacity: 0, height: 0 }]}>
           <TouchableOpacity style={styles.actionButton} onPress={handleReplay}> 
             <MaterialIcons name="replay" size={30} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Replay</Text>
@@ -294,6 +334,7 @@ export default function VideoPlaybackScreen() {
   );
 }
 
+// Styles remain the same
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -314,6 +355,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.black,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden', // Hide potential overflow from VideoView
   },
   fullscreenVideoContainer: {
     width: '100%', 
@@ -328,9 +370,15 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   fullscreenVideo: {
+    // Style adjustments for fullscreen if needed
   },
   loadingIndicator: {
     position: 'absolute',
+    // Ensure it's centered
+    top: '50%',
+    left: '50%',
+    marginTop: -18, // Half of typical large indicator size
+    marginLeft: -18,
   },
   errorContainer: {
     position: 'absolute',
@@ -392,11 +440,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
-    position: 'absolute',
-    top: '50%', 
-    left: 0, 
-    right: 0,
-    transform: [{ translateY: -30 }],
   },
   playPauseButton: {
     marginHorizontal: SPACING.lg,
@@ -424,8 +467,10 @@ const styles = StyleSheet.create({
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    alignItems: 'center', // Align items vertically
+    alignSelf: 'center', // Center the container
     width: '80%',
-    marginTop: SPACING.lg,
+    paddingVertical: SPACING.md, // Use padding instead of margin
   },
   actionButton: {
     alignItems: 'center',

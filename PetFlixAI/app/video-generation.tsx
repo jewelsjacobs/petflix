@@ -7,8 +7,17 @@ import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/styles';
 import { useRouter } from 'expo-router';
 import * as Progress from 'react-native-progress';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, withRepeat } from 'react-native-reanimated';
-import { generateVideo } from '../services/VideoService';
+import { generateNarrativeVideo } from '../services/VideoService';
 import { useAppContext } from '../context/AppContext';
+
+// Define more specific progress state type
+interface GenerationProgress {
+  stage: 'initializing' | 'generating' | 'extracting' | 'stitching' | 'complete' | 'error';
+  currentClip?: number;
+  totalClips?: number;
+  overallProgress: number; // 0 to 1 representing the entire process
+  message?: string; // Optional message directly from the service
+}
 
 const FUN_FACTS = [
   "Teaching pixels to play fetch...",
@@ -24,7 +33,11 @@ const FUN_FACTS = [
 export default function VideoGenerationScreen() {
   const router = useRouter();
   const { selectedImageUri, selectedTheme } = useAppContext();
-  const [progress, setProgress] = useState(0);
+  // Use GenerationProgress type for state
+  const [progressState, setProgressState] = useState<GenerationProgress>({ 
+    stage: 'initializing', 
+    overallProgress: 0 
+  });
   const [statusMessage, setStatusMessage] = useState("Initializing...");
   const [factIndex, setFactIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -55,7 +68,8 @@ export default function VideoGenerationScreen() {
 
       setIsGenerating(true);
       setError(null);
-      setProgress(0);
+      // Update initial state
+      setProgressState({ stage: 'initializing', overallProgress: 0 });
       setStatusMessage("Warming up the cameras...");
       setFactIndex(0);
       
@@ -69,16 +83,16 @@ export default function VideoGenerationScreen() {
         setFactIndex((prev) => (prev + 1) % FUN_FACTS.length);
       }, 3000);
       
-      const result = await generateVideo({
+      // Call generateNarrativeVideo instead of generateVideo
+      const result = await generateNarrativeVideo({ 
         imageUri: selectedImageUri,
         themeId: selectedTheme,
-        onProgress: (newProgress) => {
+        // Pass the callback expecting GenerationProgress
+        onProgress: (newProgressState: GenerationProgress) => { 
           if (!isMounted) return;
-          setProgress(newProgress);
-          if (newProgress < 0.3) setStatusMessage("Analyzing pet features...");
-          else if (newProgress < 0.6) setStatusMessage("Applying cinematic theme...");
-          else if (newProgress < 0.9) setStatusMessage("Rendering your masterpiece...");
-          else setStatusMessage("Adding finishing touches...");
+          // No need to derive state anymore, use directly
+          setProgressState(newProgressState);
+          setStatusMessage(newProgressState.message || "Processing..."); // Use message from service if available
         },
       });
 
@@ -88,15 +102,19 @@ export default function VideoGenerationScreen() {
 
       if (!isMounted) return;
 
-      if (result.success && result.videoUrl) {
+      if (result.success && result.stitchedVideoUri) { 
+        setProgressState(prev => ({ ...prev, stage: 'complete', overallProgress: 1 }));
         setStatusMessage("Video Ready!");
         setTimeout(() => {
           router.replace({ 
             pathname: '/video-playback', 
-            params: { videoUrl: result.videoUrl, themeId: selectedTheme }
+            // Pass stitchedVideoUri as videoUrl parameter
+            params: { videoUrl: result.stitchedVideoUri, themeId: selectedTheme }
           });
         }, 1000);
       } else {
+        // Update state on error
+        setProgressState(prev => ({ ...prev, stage: 'error' }));
         setError(result.error || "An unknown error occurred during generation.");
         Alert.alert("Generation Failed", result.error || "Could not generate video. Please try again.", [
           { text: "OK", onPress: () => router.back() }
@@ -123,7 +141,7 @@ export default function VideoGenerationScreen() {
           </View>
 
           <Progress.Bar 
-            progress={progress} 
+            progress={progressState.overallProgress} // Use overallProgress from state
             width={null} 
             height={15}
             color={error ? COLORS.pink : COLORS.lightPurple}
@@ -132,7 +150,7 @@ export default function VideoGenerationScreen() {
             borderRadius={BORDER_RADIUS.full}
             style={styles.progressBar}
           />
-          <Text style={styles.progressText}>{`${Math.round(progress * 100)}%`}</Text>
+          <Text style={styles.progressText}>{`${Math.round(progressState.overallProgress * 100)}%`}</Text>
 
           <Text style={styles.statusMessage}>{error ? `Error: ${error}` : statusMessage}</Text>
 

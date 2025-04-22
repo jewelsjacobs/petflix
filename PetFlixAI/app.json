@@ -17,7 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.juliajacobs.PetFlixAI",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "PetFlix AI needs access to your camera to take photos of your pet for their movie.",
+        "NSPhotoLibraryUsageDescription": "PetFlix AI needs access to your photo library to select photos of your pet for their movie.",
+        "NSPhotoLibraryAddUsageDescription": "PetFlix AI needs access to save the generated movie to your photo library."
       }
     },
     "android": {
@@ -31,7 +34,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "expo-video"
     ],
     "extra": {
       "router": {

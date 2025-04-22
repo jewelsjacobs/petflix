@@ -38,3 +38,11 @@ yarn-error.*
 
 # history
 .history
+
+test_video_api.py
+
+.env
+
+.DS_Store
+
+.cursor

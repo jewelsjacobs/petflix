@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,13 +11,55 @@ import * as Clipboard from 'expo-clipboard';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 export default function ShareScreen() {
   const router = useRouter();
   const { videoUrl, themeId } = useLocalSearchParams<{ videoUrl: string; themeId: string }>();
   const [isSharing, setIsSharing] = useState(false);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
 
   const themeInfo = themeId ? THEME_DETAILS[themeId] : null;
+
+  // Generate thumbnail when videoUrl is available
+  useEffect(() => {
+    let isMounted = true;
+    const generateThumbnail = async () => {
+      if (!videoUrl || !videoUrl.startsWith('file://')) {
+        console.warn("Cannot generate thumbnail: videoUrl is missing or not a local file URI.");
+        setThumbnailError("Cannot generate thumbnail from the provided video URL.");
+        setThumbnailUri(themeInfo?.placeholder ?? null); // Fallback to placeholder
+        return;
+      }
+
+      setThumbnailUri(null); // Reset while generating
+      setThumbnailError(null);
+      
+      try {
+        console.log(`Generating thumbnail for local video: ${videoUrl}`);
+        const { uri } = await VideoThumbnails.getThumbnailAsync(
+          videoUrl,
+          { time: 1000 } // Get thumbnail at 1 second mark
+        );
+        if (isMounted) {
+          console.log(`Thumbnail generated successfully: ${uri}`);
+          setThumbnailUri(uri);
+        }
+      } catch (e: any) {
+        console.error("Failed to generate video thumbnail:", e);
+        if (isMounted) {
+            setThumbnailError("Could not load video preview.");
+            // Fallback to placeholder if generation fails
+            setThumbnailUri(themeInfo?.placeholder ?? null); 
+        }
+      }
+    };
+
+    generateThumbnail();
+
+    return () => { isMounted = false };
+  }, [videoUrl, themeInfo]); // Depend on videoUrl and themeInfo (for fallback)
 
   // Placeholder functions for button presses
   const handleInstagramShare = () => { 
@@ -158,17 +200,23 @@ export default function ShareScreen() {
         <Header title="Share Your Creation" showBackButton />
         <View style={styles.container}>
           {/* Thumbnail Display */} 
-          {themeInfo ? (
-            <View style={styles.thumbnailContainer}>
+          <View style={styles.thumbnailContainer}>
+            {thumbnailUri ? (
               <Image 
-                source={{ uri: themeInfo.placeholder }} 
+                source={{ uri: thumbnailUri }} // Use generated thumbnail URI
                 style={styles.thumbnailImage} 
               />
-              <Text style={styles.themeTitle}>{themeInfo.title}</Text>
-            </View>
-          ) : (
-            <Text style={styles.placeholderText}>Theme information not available.</Text>
-          )}
+            ) : thumbnailError ? (
+              <View style={[styles.thumbnailImage, styles.thumbnailPlaceholder]}>
+                <Text style={styles.thumbnailErrorText}>{thumbnailError}</Text>
+              </View>
+            ) : (
+              <View style={[styles.thumbnailImage, styles.thumbnailPlaceholder]}>
+                <ActivityIndicator color={COLORS.gray} />
+              </View>
+            )}
+            {themeInfo && <Text style={styles.themeTitle}>{themeInfo.title}</Text>}
+          </View>
 
           {/* Sharing Buttons */} 
           <View style={styles.buttonGrid}> 
@@ -245,6 +293,17 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     marginBottom: SPACING.md,
     backgroundColor: COLORS.gray, 
+  },
+  thumbnailPlaceholder: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0,0,0,0.1)', // Darker placeholder bg
+  },
+  thumbnailErrorText: {
+      color: COLORS.white,
+      fontSize: FONT_SIZES.sm,
+      textAlign: 'center',
+      padding: SPACING.sm,
   },
   themeTitle: {
     fontSize: FONT_SIZES.lg,
