@@ -6,8 +6,8 @@ Create the video player screen, now handling the final stitched narrative video.
 
 #### Dependencies
 
-- [ ] Video Generation complete (Outputs stitched video URI)
-- [ ] Video Stitching Service implemented
+- [x] Video Stitching complete (provides local video URI)
+- [x] Install expo-video
 
 #### Priority
 
@@ -15,7 +15,10 @@ High
 
 #### Instructions
 
-- [x] Install expo-av / expo-video
+- [x] Create the screen layout with video player area and controls.
+- [x] Ensure the `VideoView` component from `expo-video` can play the local stitched video file.
+- [x] Implement playback controls using vector icons:
+- [x] Install expo-video
 - [x] Create custom video player component
 - [x] Implement video metadata display (Title based on theme shown)
 - [x] Add theme indicator and HD badge
@@ -23,7 +26,7 @@ High
 - [x] Implement video replay capability
 - [x] Add "Share" button linked to sharing screen
 - [x] Modify the screen to accept a single local file URI for the stitched video (instead of a remote URL).
-- [x] Ensure the `Video` component from `expo-av` or `expo-video` can play the local stitched video file.
+- [x] Ensure the `Video` component from `expo-video` can play the local stitched video file.
 - [x] Adjust any logic previously dependent on receiving a remote URL. (Mainly affects Share screen integration)
 
 ### Task: Sharing Screen (Screen 6)

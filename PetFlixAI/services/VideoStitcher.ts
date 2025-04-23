@@ -5,16 +5,24 @@ import * as FileSystem from 'expo-file-system';
 const SHOTSTACK_API_KEY = process.env.EXPO_PUBLIC_SHOTSTACK_API_KEY; 
 const SHOTSTACK_API_URL = process.env.SHOTSTACK_API_URL || 'https://api.shotstack.io/stage/render';
 
+// Define and export input type for stitcher
+export interface ClipInput {
+    uri: string;
+    duration: number; // Duration in seconds
+}
+
 // Define interfaces for Shotstack API interaction
 interface ShotstackClip {
     asset: {
         type: 'video';
         src: string;
-        // We might need to fetch duration if Shotstack can't determine it automatically
-        // For now, assuming 'auto' works or Shotstack determines it.
     };
     start: number; // Start time in seconds
-    length?: number; // Duration in seconds - Making optional to test auto-detection
+    length: number; // Duration in seconds (no longer optional or auto)
+    transition?: { // Make transition optional
+        in?: string;
+        out?: string;
+    }
 }
 
 interface ShotstackTrack {
@@ -79,15 +87,6 @@ const SHOTSTACK_ERRORS = {
 };
 
 // --- Helper Functions ---
-
-// Removing getVideoDuration as we are testing Shotstack's auto-detection
-/*
-async function getVideoDuration(uri: string): Promise<number> {
-    // ... implementation ...
-    console.warn(`getVideoDuration stub called for ${uri}. Returning placeholder 5 seconds.`);
-    return 5.0; // Placeholder duration
-}
-*/
 
 /**
  * Polls the Shotstack API for the status of a render job.
@@ -160,14 +159,14 @@ async function pollShotstackStatus(renderId: string, apiKey: string, apiUrl: str
 /**
  * Stitches multiple video clips together using the Shotstack cloud API.
  * 
- * @param videoUris An array of video URIs (MUST be publicly accessible URLs). 
- *                  Local file URIs are not supported directly by Shotstack unless pre-uploaded.
+ * @param videoInputs An array of objects containing video URI and duration { uri: string, duration: number }.
+ *                  URIs MUST be publicly accessible URLs.
  * @param outputResolution Desired output resolution ('sd', 'hd', '1080'). Defaults to 'sd'.
  * @returns A Promise resolving to the URL of the final stitched video hosted by Shotstack.
  * @throws An error with a message from SHOTSTACK_ERRORS if any step fails.
  */
 export async function stitchVideosWithShotstack(
-    videoUris: string[], 
+    videoInputs: ClipInput[], 
     outputResolution: 'sd' | 'hd' | '1080' = 'sd'
 ): Promise<string> {
     
@@ -175,58 +174,36 @@ export async function stitchVideosWithShotstack(
         throw new Error(SHOTSTACK_ERRORS.API_KEY_MISSING);
     }
     if (!SHOTSTACK_API_URL) {
-        // Should not happen if default is set, but good practice
         throw new Error("Shotstack API URL is not configured.");
     }
-    if (!videoUris || videoUris.length < 1) { // Allow single video for testing/consistency? Let's require >= 1
-        throw new Error(SHOTSTACK_ERRORS.INVALID_INPUT);
+    if (!videoInputs || videoInputs.length < 1) { 
+        throw new Error(SHOTSTACK_ERRORS.INVALID_INPUT + " Requires at least one clip input object.");
+    }
+    if (videoInputs.some(input => typeof input?.uri !== 'string' || typeof input?.duration !== 'number' || input.duration <= 0)) {
+         throw new Error(SHOTSTACK_ERRORS.INVALID_INPUT + " Each input must have a valid string 'uri' and positive number 'duration'.");
     }
 
-    // Validate that all URIs are URLs (Shotstack needs accessible sources)
-    // We might need to upload local files first if that's a requirement
-    if (videoUris.some(uri => !uri.startsWith('http'))) {
+    if (videoInputs.some(input => !input.uri.startsWith('http'))) {
         console.warn("Detected non-HTTP URIs. Shotstack requires publicly accessible URLs. Attempting anyway, but this may fail.");
-        // Consider throwing an error here or implementing an upload step.
-        // throw new Error("Input contains local file URIs. Shotstack requires public URLs.");
     }
 
     console.log("Starting Shotstack video stitching process...");
-    console.log("Input video URIs:", videoUris);
+    console.log("Input video data:", JSON.stringify(videoInputs, null, 2));
 
     try {
         let currentStartTime = 0;
         const clips: ShotstackClip[] = [];
 
-        // Prepare clips for the timeline
-        // IMPORTANT: Testing Shotstack's ability to determine length automatically.
-        // If this fails, we need to implement duration fetching.
-        for (const uri of videoUris) {
-             // const duration = await getVideoDuration(uri); // Needs implementation if auto-detect fails
-             // if (duration <= 0) throw new Error(`Invalid duration ${duration} for ${uri}`);
-
-             clips.push({
-                 asset: { type: 'video', src: uri },
+        for (const input of videoInputs) {
+             const clip: ShotstackClip = {
+                 asset: { type: 'video', src: input.uri },
                  start: currentStartTime,
-                 // length is omitted - testing auto-detection
-             });
-             // How to increment start time without knowing length?
-             // Shotstack might handle this automatically if clips are in a single track.
-             // If not, we MUST fetch duration first.
-             // For now, let's assume Shotstack handles sequential clips in a track without explicit start times beyond the first (or maybe start=0 for all? Check docs).
-             // Let's *assume* sequential placement and set start=0 for all clips in the track for now, 
-             // relying on the order in the array.
-             // clips[clips.length - 1].start = 0; // Resetting start to 0 for this test
-             // ^^ Correction: The API likely requires sequential start times. 
-             // We *cannot* omit length AND have accurate start times without fetching duration first.
-             // Let's revert to the placeholder length temporarily for the *start time calculation only*,
-             // while still omitting length in the actual clip object sent to the API.
-
-             // Placeholder increment - THIS IS LIKELY WRONG for Shotstack's API logic 
-             // if length is truly omitted. We MUST clarify how Shotstack handles 
-             // sequential clips without lengths.
-             currentStartTime += 5.0; // Placeholder increment based on assumed 5s length
+                 length: input.duration, // Use provided duration
+             };
+             clips.push(clip);
+             currentStartTime += input.duration; 
         }
-        
+
         if (clips.length === 0) {
              throw new Error("No valid clips could be prepared for the timeline.");
         }
@@ -234,8 +211,9 @@ export async function stitchVideosWithShotstack(
         // Construct the Shotstack edit JSON
         const editPayload: ShotstackEdit = {
             timeline: {
-                // Place all clips on a single track for simple concatenation
-                tracks: [{ clips: clips }]
+                tracks: [
+                    { clips: clips } // Use the clips array directly
+                ],
             },
             output: {
                 format: 'mp4',
@@ -286,10 +264,8 @@ export async function stitchVideosWithShotstack(
 
     } catch (error: any) {
         console.error("Shotstack video stitching failed:", error);
-        // Re-throw specific errors or a generic one
         throw new Error(error.message || SHOTSTACK_ERRORS.UNKNOWN);
     } 
-    // No finally block needed for cleanup as we are not creating local temp files in this flow.
 }
 
 // Remove or comment out the old function if it exists

@@ -234,6 +234,7 @@ export default function VideoPlaybackScreen() {
               player={player}
               contentFit={'contain'} // Use string literal based on previous attempt
               allowsFullscreen // Enable native fullscreen button/behavior (optional)
+              nativeControls={false} // Explicitly disable native controls
               // allowsPictureInPicture // Enable PiP (optional)
               // Native controls are off by default when providing a player instance
             />

@@ -44,8 +44,6 @@ High
 - [x] Install React Native Reanimated: `npx expo install react-native-reanimated`
 - [x] Install Expo Notifications: `npx expo install expo-notifications`
 - [x] Install Expo Background Fetch: `npx expo install expo-background-fetch`
-- [x] Install Expo AV: `npx expo install expo-av`
-- [x] Uninstall Expo AV: `npm uninstall expo-av`
 - [x] Install Expo Video: `npx expo install expo-video`
 - [x] Install Expo File System: `npx expo install expo-file-system`
 - [x] Install Expo Video Thumbnails: `npx expo install expo-video-thumbnails`

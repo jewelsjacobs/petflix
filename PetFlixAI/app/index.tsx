@@ -1,10 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Button } from '../../components/Button';
-import { COLORS } from '../../constants/themes';
-import { SPACING, FONT_SIZES } from '../../constants/styles';
+import { GradientBackground } from '@components/GradientBackground';
+import { Button } from '@components/Button';
+import { COLORS } from '@constants/themes';
+import { SPACING, FONT_SIZES } from '@constants/styles';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 

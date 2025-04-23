@@ -4,8 +4,17 @@ import * as Crypto from 'expo-crypto'; // Import for hashing
 import * as Network from 'expo-network'; // Import expo-network
 import { ERROR_MESSAGES } from '../constants/errorMessages'; // Import error messages
 import { CostTracker } from '../utils/costTracker'; // Import CostTracker
-import { getLastFrameFromUrlAsBase64 } from './VideoFrameExtractor'; // Import the extractor function
-import { stitchVideos } from './VideoStitcher'; // Import the stitcher function
+import {
+    getLastFrameFromUrlAsBase64,
+    FrameExtractionResult // Import the interface
+} from './VideoFrameExtractor';
+import { stitchVideosWithShotstack } from './VideoStitcher'; // Import ClipInput if defined there, or define locally
+
+// Define ClipInput locally for now, will be moved/exported from VideoStitcher later
+interface ClipInput {
+  uri: string;
+  duration: number;
+}
 
 // --- Constants ---
 const API_KEY = process.env.EXPO_PUBLIC_MINIMAX_API_KEY;
@@ -15,7 +24,7 @@ const CREATE_TASK_ENDPOINT = '/v1/video_generation';
 const QUERY_STATUS_ENDPOINT = '/v1/query/video_generation';
 const RETRIEVE_URL_ENDPOINT = '/v1/files/retrieve';
 const API_MODEL = 'I2V-01-Director';
-const POLLING_INTERVAL_MS = 5000; // 5 seconds
+const POLLING_INTERVAL_MS = 10000; // 10 seconds (Increased from 5s)
 const MAX_POLLING_TIME_MS = 5 * 60 * 1000; // 5 minutes
 const ESTIMATED_VIDEO_DURATION_SECONDS = 10; // TODO: Adjust based on API or make configurable
 
@@ -486,21 +495,20 @@ export const generateNarrativeVideo = async ({
   onProgress = () => { },
 }: NarrativeGenerationOptions): Promise<NarrativeGenerationResult> => {
   console.log(`Starting narrative generation for theme: ${themeId}`);
-  // Use a more accurate totalSteps if possible, but 11 is okay for progress
-  const totalSteps = 11; // 5 generates + 4 extracts + 1 stitch + 1 initial setup
+  const totalSteps = 5; // TEMP: 1 init + 2 generates + 1 extract + 1 stitch (Reverted from 11)
   let currentStep = 0;
   // Keep track of progress state locally within the service for error reporting
-  let currentProgressState: GenerationProgress = { stage: 'initializing', overallProgress: 0 }; 
-  
+  let currentProgressState: GenerationProgress = { stage: 'initializing', overallProgress: 0 };
+
   const updateProgress = (stage: GenerationProgress['stage'], currentClip?: number, message?: string) => {
     currentStep++;
     const overallProgress = Math.min(1, currentStep / totalSteps);
-    currentProgressState = { 
+    currentProgressState = {
       stage,
       currentClip,
-      totalClips: 5,
+      totalClips: 2, // TEMP: Reverted from 5
       overallProgress,
-      message 
+      message
     };
     onProgress(currentProgressState);
   };
@@ -521,88 +529,130 @@ export const generateNarrativeVideo = async ({
     updateProgress('initializing', undefined, "Preparing your pet's debut...");
 
     const narrativePrompts = _getNarrativePrompts(themeId);
-    const videoClipUrls: string[] = [];
+    // Store URI and Duration
+    const videoClipData: ClipInput[] = []; 
     let currentInputImageUri = imageUri;
-    let currentInputIsDataUri = false; // Track if the input is base64 data URI
+    let currentInputIsDataUri = false;
 
-    // --- Loop for 5 Clips ---
-    for (let i = 0; i < 5; i++) {
+    // --- Loop for 2 Clips (TEMP) ---
+    const failedClips: number[] = []; 
+    let lastSuccessfulClipDuration = ESTIMATED_VIDEO_DURATION_SECONDS; // Fallback/initial estimate
+
+    for (let i = 0; i < 2; i++) { // TEMP: Kept at 2 clips for testing
       const clipNumber = i + 1;
       const prompt = narrativePrompts[i];
-      console.log(`--- Generating Clip ${clipNumber}/5 ---`);
-      updateProgress('generating', clipNumber, `Generating clip ${clipNumber} of 5...`);
+      console.log(`--- Generating Clip ${clipNumber}/2 ---`);
+      updateProgress('generating', clipNumber, `Generating clip ${clipNumber} of 2...`);
 
-      // 1. Prepare Input Image (Base64 Encode only if it's a file URI)
-      const imageDataUri = currentInputIsDataUri 
-        ? currentInputImageUri 
-        : await _encodeImageAsDataUri(currentInputImageUri);
+      let videoUrl: string | null = null;
+      let clipDuration: number = ESTIMATED_VIDEO_DURATION_SECONDS; // Default/estimate
 
-      // 2. Call API to generate the clip (reuse existing polling logic)
-      // Note: Caching might need adjustment here if we cache individual clips based on intermediate frames?
-      // For simplicity, let's bypass per-clip caching for now.
-      const taskId = await _createApiTask(prompt, imageDataUri);
-      // Pass a sub-progress handler to poll function if needed, or just update stage
-      const fileId = await _pollApiTaskStatus(taskId, (pollProgress) => {
-        // Example: updateProgress('generating', clipNumber, `Generating clip ${clipNumber}... (${Math.round(pollProgress * 100)}%)`);
-        // For now, keep it simple as the main updateProgress handles stage changes
-      });
-      const videoUrl = await _retrieveApiVideoUrl(fileId);
-      videoClipUrls.push(videoUrl);
-      console.log(`Clip ${clipNumber} generated: ${videoUrl}`);
-      
-      // --- Record Cost for this Clip --- 
-      await CostTracker.recordApiCallCost(ESTIMATED_VIDEO_DURATION_SECONDS);
-      // --- End Record Cost ---
+      try {
+        // 1. Prepare Input Image
+        const imageDataUri = currentInputIsDataUri
+          ? currentInputImageUri
+          : await _encodeImageAsDataUri(currentInputImageUri);
 
-      // 3. Extract Last Frame (if not the last clip)
-      if (i < 4) {
-        console.log(`--- Extracting Frame from Clip ${clipNumber}/5 ---`);
-        updateProgress('extracting', clipNumber, `Analyzing scene ${clipNumber} for transition...`);
-        // Call the actual VideoFrameExtractor service
-        try {
-          currentInputImageUri = await getLastFrameFromUrlAsBase64(videoUrl);
-          currentInputIsDataUri = true; // The extractor returns a data URI
-          console.log(`Frame extracted successfully for clip ${clipNumber}.`);
-        } catch (extractError: any) {
-            console.error(`Failed to extract frame from clip ${clipNumber} (${videoUrl}):`, extractError);
-            // Decide on error handling: Stop the whole process or try to continue?
-            // For now, let's re-throw to stop the narrative generation.
-            throw new Error(`Frame extraction failed for clip ${clipNumber}: ${extractError.message}`);
-        }
-        /* --- Placeholder until extractor is implemented ---
-        console.warn("VideoFrameExtractor not implemented yet. Using original image for next clip.");
-        currentInputImageUri = imageUri; // Fallback to original image
-        currentInputIsDataUri = false;
-        --- End Placeholder --- */
+        // 2. Call API to generate the clip
+        const taskId = await _createApiTask(prompt, imageDataUri);
+        const fileId = await _pollApiTaskStatus(taskId, (pollProgress) => {
+          // Progress within polling is handled internally for now
+        });
+        videoUrl = await _retrieveApiVideoUrl(fileId);
+        // Clip generated successfully, but duration is unknown yet.
+        console.log(`Clip ${clipNumber} generated successfully: ${videoUrl}`);
+
+        // --- Record Cost using ESTIMATE for now --- 
+        // TODO: Refine cost tracking if actual duration differs significantly
+        await CostTracker.recordApiCallCost(ESTIMATED_VIDEO_DURATION_SECONDS);
+        // --- End Record Cost ---
+
+      } catch (generationError: any) {
+        console.error(`!!! Failed to generate clip ${clipNumber}:`, generationError.message);
+        failedClips.push(clipNumber);
+        videoUrl = null; // Ensure videoUrl is null on failure
+      }
+
+      // 3. Extract Last Frame & Get Duration (only if generation succeeded)
+      if (videoUrl) {
+          if (i < 1) { // If not the last clip, extract frame for next iteration
+              console.log(`--- Extracting Frame & Duration from Clip ${clipNumber}/2 ---`);
+              updateProgress('extracting', clipNumber, `Analyzing scene ${clipNumber}...`);
+              try {
+                  // Get Base64 AND Duration
+                  const extractionResult: FrameExtractionResult = await getLastFrameFromUrlAsBase64(videoUrl);
+                  currentInputImageUri = extractionResult.base64DataUri;
+                  clipDuration = extractionResult.durationSeconds; // Get actual duration
+                  lastSuccessfulClipDuration = clipDuration; // Store for potential fallback
+                  currentInputIsDataUri = true;
+                  console.log(`Frame extracted for clip ${clipNumber}. Duration: ${clipDuration.toFixed(2)}s. Next input is Base64.`);
+                  // Add data for successful clip (URL + actual duration)
+                  videoClipData.push({ uri: videoUrl, duration: clipDuration });
+              } catch (extractError: any) {
+                  console.error(`!!! Failed to extract frame/duration from clip ${clipNumber} (${videoUrl}):`, extractError.message);
+                  console.warn(`Falling back to original image for next clip.`);
+                  currentInputImageUri = imageUri;
+                  currentInputIsDataUri = false;
+                  // Add data for successful clip but use ESTIMATED duration as fallback
+                  console.warn(`Using estimated duration (${ESTIMATED_VIDEO_DURATION_SECONDS}s) for clip ${clipNumber} due to extraction error.`);
+                  videoClipData.push({ uri: videoUrl, duration: ESTIMATED_VIDEO_DURATION_SECONDS });
+                  clipDuration = ESTIMATED_VIDEO_DURATION_SECONDS; // Ensure clipDuration reflects estimate
+                  lastSuccessfulClipDuration = clipDuration; // Update fallback
+              }
+          } else { // For the very last clip, we still need its duration for stitching
+               console.log(`--- Getting Duration for Last Clip ${clipNumber}/2 ---`);
+               updateProgress('extracting', clipNumber, `Finalizing clip ${clipNumber}...`);
+               try {
+                    // Use a simpler function or modify extractor if Base64 isn't needed
+                    // For now, let's call the same function but ignore the base64 part
+                    const extractionResult: FrameExtractionResult = await getLastFrameFromUrlAsBase64(videoUrl);
+                    clipDuration = extractionResult.durationSeconds; // Get actual duration
+                    console.log(`Duration for last clip ${clipNumber}: ${clipDuration.toFixed(2)}s.`);
+                     videoClipData.push({ uri: videoUrl, duration: clipDuration });
+               } catch (extractError: any) {
+                   console.error(`!!! Failed to get duration for last clip ${clipNumber} (${videoUrl}):`, extractError.message);
+                   console.warn(`Using estimated duration (${ESTIMATED_VIDEO_DURATION_SECONDS}s) for last clip ${clipNumber} due to error.`);
+                   videoClipData.push({ uri: videoUrl, duration: ESTIMATED_VIDEO_DURATION_SECONDS });
+               }
+          }
+      } else if (i < 1) {
+          // Generation failed, skip extraction, use original image for next
+          console.log(`Skipping frame extraction for clip ${clipNumber} because generation failed.`);
+          currentInputImageUri = imageUri; 
+          currentInputIsDataUri = false;
       }
     }
 
-    console.log("--- All clips generated --- Video URLs:", videoClipUrls);
+    console.log("--- Clip Generation Loop Complete ---");
+    console.log("Successful Video Data:", videoClipData); // Log the data structure
+    console.log("Failed Clip Numbers:", failedClips);
+
+    // Check if any clips were generated successfully before attempting to stitch
+    if (videoClipData.length === 0) {
+        console.error("No video clips were successfully processed. Aborting stitching.");
+        throw new Error(ERROR_MESSAGES.VIDEO_GENERATION_FAILED + " (No clips succeeded)");
+    }
 
     // --- Stitching Step ---
     console.log("--- Stitching Final Video ---");
     updateProgress('stitching', undefined, "Editing the final cut...");
-    // Call the VideoStitcher service
     let finalStitchedUri: string;
     try {
-        finalStitchedUri = await stitchVideos(videoClipUrls);
+        // Pass the array of objects with URI and duration
+        finalStitchedUri = await stitchVideosWithShotstack(videoClipData);
         console.log("Video stitching successful. Final URI:", finalStitchedUri);
     } catch (stitchError: any) {
         console.error("Video stitching failed:", stitchError);
-        // Re-throw to stop the process and report error
         throw new Error(`Stitching failed: ${stitchError.message}`);
     }
-    /* --- Placeholder until stitcher is implemented ---
-    const finalStitchedUri = videoClipUrls[0]; // TEMPORARY: Return the first clip URL
-    console.warn("VideoStitcher not implemented yet. Returning first clip URL as final video.");
-    --- End Placeholder --- */
     
     updateProgress('complete', undefined, "Premiere ready!");
     console.log("Narrative generation complete. Final Video URI:", finalStitchedUri);
 
     return {
       success: true,
-      videoUrls: videoClipUrls, // Return individual URLs for potential future use
+      // videoUrls: videoClipUrls, // Keep original URLs if needed, or derive from videoClipData
+      videoUrls: videoClipData.map(clip => clip.uri),
       stitchedVideoUri: finalStitchedUri, 
     };
 

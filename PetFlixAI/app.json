@@ -16,19 +16,25 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.juliajacobs.PetFlixAI",
+      "jsEngine": "hermes",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "PetFlix AI needs access to your camera to take photos of your pet for their movie.",
         "NSPhotoLibraryUsageDescription": "PetFlix AI needs access to your photo library to select photos of your pet for their movie.",
         "NSPhotoLibraryAddUsageDescription": "PetFlix AI needs access to save the generated movie to your photo library."
-      }
+      },
+      "runtimeVersion": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.juliajacobs.PetFlixAI"
+      "package": "com.juliajacobs.PetFlixAI",
+      "jsEngine": "hermes",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -45,6 +51,9 @@
       "eas": {
         "projectId": "f4e32f70-9c23-4c92-9f2a-bea82796818b"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f4e32f70-9c23-4c92-9f2a-bea82796818b"
     }
   }
 }

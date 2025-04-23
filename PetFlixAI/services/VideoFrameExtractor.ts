@@ -1,37 +1,48 @@
 // services/VideoFrameExtractor.ts
 import * as FileSystem from 'expo-file-system';
 import * as VideoThumbnails from 'expo-video-thumbnails';
-// We might need expo-av for duration, but let's try without it first based on thumbnail options
-// import { AVPlaybackStatusSuccess, Video } from 'expo-av'; 
+// Import expo-av Audio for loading metadata
+import { Audio, AVPlaybackStatus, AVPlaybackStatusSuccess } from 'expo-av';
+// Import expo-video components if needed for duration, but keep separate for now.
+// e.g., import { VideoPlayer } from 'expo-video';
 
 // Error messages specific to frame extraction
 const FRAME_EXTRACTOR_ERRORS = {
     DOWNLOAD_FAILED: 'Failed to download video for frame extraction.',
+    LOAD_VIDEO_FAILED: 'Failed to load video/audio metadata for duration.', // Updated wording
     THUMBNAIL_FAILED: 'Failed to generate thumbnail from video.',
     FILE_READ_FAILED: 'Failed to read thumbnail file as Base64.',
     CLEANUP_FAILED: 'Failed to clean up temporary files after frame extraction.',
     UNKNOWN: 'An unknown error occurred during frame extraction.'
 };
 
+// Define return type
+export interface FrameExtractionResult {
+    base64DataUri: string;
+    durationSeconds: number;
+}
+
 /**
- * Downloads a video from a URL, extracts a frame near the end as a thumbnail,
+ * Downloads a video from a URL, determines its duration, extracts a frame near the end,
  * reads the thumbnail as a Base64 data URI, and cleans up temporary files.
  * 
  * @param videoUrl The URL of the video to process.
- * @returns A Promise resolving to the Base64 data URI (e.g., "data:image/jpeg;base64,...") of the extracted frame.
+ * @returns A Promise resolving to an object containing the Base64 data URI and the duration in seconds.
  * @throws An error with a message from FRAME_EXTRACTOR_ERRORS if any step fails.
  */
-export async function getLastFrameFromUrlAsBase64(videoUrl: string): Promise<string> {
+export async function getLastFrameFromUrlAsBase64(videoUrl: string): Promise<FrameExtractionResult> {
     let tempVideoUri: string | null = null;
     let tempThumbnailUri: string | null = null;
     let base64Thumbnail: string | null = null;
+    let soundObject: Audio.Sound | null = null; 
+    let durationSeconds: number = 0; // Initialize duration
 
     try {
         // 1. Download the video to a temporary file
         console.log(`Downloading video for frame extraction: ${videoUrl}`);
         const tempDir = FileSystem.cacheDirectory + 'frameExtraction/';
         await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
-        const videoFilename = `${Date.now()}.mp4`; // Simple unique name
+        const videoFilename = `${Date.now()}.mp4`;
         tempVideoUri = tempDir + videoFilename;
 
         const downloadResult = await FileSystem.downloadAsync(videoUrl, tempVideoUri);
@@ -41,50 +52,86 @@ export async function getLastFrameFromUrlAsBase64(videoUrl: string): Promise<str
         }
         console.log(`Video downloaded successfully to: ${tempVideoUri}`);
 
-        // 2. Extract a thumbnail near the end
-        // We need the duration to get the *last* frame reliably. 
-        // Expo-video-thumbnails allows specifying a time. Let's try getting a thumbnail near the end.
-        // If the video is short, this might just get the last available frame.
-        // Let's target ~100ms before the presumed end (or just a very large time value).
-        const timeMs = 10 * 1000 * 1000; // A very large time, hoping it clamps to the end? Or requires duration? Let's assume it clamps for now.
-        // TODO: Revisit this - might need expo-av to get duration for precise end frame.
+        // 2. Load video metadata using Audio.Sound.createAsync
+        let durationMillis: number | undefined;
+        try {
+            console.log(`Loading video metadata using Audio from: ${tempVideoUri}`);
+            // Use Audio.Sound.createAsync
+            const { sound, status } = await Audio.Sound.createAsync(
+                { uri: tempVideoUri },
+                { shouldPlay: false } // We only need metadata
+            );
+            // Assign the sound object for cleanup
+            soundObject = sound;
 
-        console.log(`Generating thumbnail near time ${timeMs}ms...`);
-        const thumbnailResult = await VideoThumbnails.getThumbnailAsync(
-            tempVideoUri,
-            {
-                time: timeMs, // Request frame near the end
-                quality: 0.8 // Adjust quality as needed
+            // Type guard for loaded status
+            if (status.isLoaded) {
+                 durationMillis = status.durationMillis;
+                 if (typeof durationMillis === 'number' && durationMillis > 0) {
+                     console.log(`Video duration fetched via Audio: ${durationMillis}ms`);
+                     durationSeconds = durationMillis / 1000; // Store duration in seconds
+                 } else {
+                    console.warn("Audio loaded but durationMillis is missing or invalid.", status);
+                    throw new Error("Could not determine valid video duration from metadata.");
+                 } 
+            } else {
+                console.warn("Audio source failed to load properly.", status);
+                throw new Error("Audio metadata status was not loaded.");
             }
+        } catch (loadError: any) {
+            console.error("Failed to load video/audio metadata:", loadError);
+            throw new Error(FRAME_EXTRACTOR_ERRORS.LOAD_VIDEO_FAILED + `: ${loadError.message}`);
+        } finally {
+             // Ensure sound object is unloaded
+             if (soundObject) {
+                console.log("Unloading sound object...");
+                await soundObject.unloadAsync();
+                console.log("Sound object unloaded.");
+             }
+        }
+
+        // 3. Calculate target time and extract thumbnail
+        if (typeof durationMillis !== 'number' || durationMillis <= 0) {
+             throw new Error(FRAME_EXTRACTOR_ERRORS.LOAD_VIDEO_FAILED + ": Invalid duration value obtained.");
+        }
+        const timeMs = Math.max(0, durationMillis - 100);
+        console.log(`Generating thumbnail at calculated time ${timeMs}ms...`);
+        
+        const thumbnailResult = await VideoThumbnails.getThumbnailAsync(
+             tempVideoUri, 
+             { time: timeMs, quality: 0.8 }
         );
         tempThumbnailUri = thumbnailResult.uri;
         console.log(`Thumbnail generated: ${tempThumbnailUri} (${thumbnailResult.width}x${thumbnailResult.height})`);
 
-        // 3. Read the thumbnail image as Base64
+        // 4. Read the thumbnail image as Base64
         console.log("Reading thumbnail as Base64...");
         base64Thumbnail = await FileSystem.readAsStringAsync(tempThumbnailUri, {
             encoding: FileSystem.EncodingType.Base64,
         });
 
-        // Determine MIME type (expo-video-thumbnails typically generates JPEG)
         const mimeType = 'image/jpeg'; 
         const dataUri = `data:${mimeType};base64,${base64Thumbnail}`;
         console.log("Thumbnail converted to Base64 data URI.");
 
-        return dataUri;
+        // Return object with data URI and duration
+        return { base64DataUri: dataUri, durationSeconds: durationSeconds };
 
     } catch (error: any) {
-        console.error("Frame extraction failed:", error);
-        // Determine specific error type if possible
-        if (error.message === FRAME_EXTRACTOR_ERRORS.DOWNLOAD_FAILED) throw error;
-        // Check if error is from VideoThumbnails (might need specific checks)
+        console.error("Frame extraction process failed:", error);
+        // Add specific check for LOAD_VIDEO_FAILED
+        if (error.message.startsWith(FRAME_EXTRACTOR_ERRORS.DOWNLOAD_FAILED) ||
+            error.message.startsWith(FRAME_EXTRACTOR_ERRORS.LOAD_VIDEO_FAILED)) {
+             throw error;
+        }
         if (tempVideoUri && !tempThumbnailUri) throw new Error(FRAME_EXTRACTOR_ERRORS.THUMBNAIL_FAILED + `: ${error.message}`);
         if (tempThumbnailUri && !base64Thumbnail) throw new Error(FRAME_EXTRACTOR_ERRORS.FILE_READ_FAILED + `: ${error.message}`);
         
-        throw new Error(FRAME_EXTRACTOR_ERRORS.UNKNOWN + `: ${error.message}`);
+        // Ensure the original error message is included for unknown errors
+        throw new Error(FRAME_EXTRACTOR_ERRORS.UNKNOWN + `: ${error.message || error}`);
 
     } finally {
-        // 4. Clean up temporary files
+        // 5. Clean up temporary files
         console.log("Cleaning up temporary files...");
         try {
             if (tempThumbnailUri) {
@@ -92,12 +139,12 @@ export async function getLastFrameFromUrlAsBase64(videoUrl: string): Promise<str
                 console.log(`Deleted temp thumbnail: ${tempThumbnailUri}`);
             }
             if (tempVideoUri) {
+                // Ensure video URI deletion happens after potential unloading
                 await FileSystem.deleteAsync(tempVideoUri, { idempotent: true });
                 console.log(`Deleted temp video: ${tempVideoUri}`);
             }
         } catch (cleanupError) {
             console.error(FRAME_EXTRACTOR_ERRORS.CLEANUP_FAILED, cleanupError);
-            // Decide if this should throw or just warn
         }
     }
 }

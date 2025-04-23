@@ -1,6 +1,17 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@components/*": ["components/*"],
+      "@constants/*": ["constants/*"],
+      "@app/*": ["app/*"],
+      "@assets/*": ["assets/*"],
+      "@services/*": ["services/*"],
+      "@utils/*": ["utils/*"],
+      "@context/*": ["context/*"]
+    }
   }
 }
