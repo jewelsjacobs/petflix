@@ -89,16 +89,17 @@ Critical
 - [x] Modify `VideoService.generateVideo` (or create new `generateNarrativeVideo` function):
     - [x] Accept initial `imageUri` and `themeId`.
     - [x] Retrieve the 5-prompt sequence for the theme.
-    - [x] Loop 5 times:
+    - [x] Loop 5 times (Tested with 2):
         - [x] Determine the input image: Use initial `imageUri` for clip 1, use extracted frame URI for clips 2-5.
         - [x] Get the corresponding prompt for the current clip number.
         - [x] Call the MiniMax API to generate the clip.
-        - [x] Store the resulting video clip URL.
-        - [x] If not the last clip, call `VideoFrameExtractor.getLastFrameFromUrlAsBase64` with the clip URL.
+        - [x] Store the resulting video clip URL **and its duration**.
+        - [x] If not the last clip, call `VideoFrameExtractor.getLastFrameFromUrlAsBase64` with the clip URL (now returns frame & duration).
+        - [x] **(New Step)** If it *is* the last clip, call `VideoFrameExtractor.getLastFrameFromUrlAsBase64` just to get the duration.
         - [x] Update overall progress via `onProgress` callback.
         - [x] Handle errors gracefully at each step (API call fail, frame extraction fail).
-    - [x] Return the array of the 5 generated video clip URLs (or pass them directly to stitching service).
-- [x] Update cost tracking to handle the cost of 5 video generations per narrative.
+    - [x] Pass the array of `{ uri, duration }` objects to the stitching service.
+- [x] Update cost tracking to handle the cost of 5 video generations per narrative (Currently uses estimate, TODO: potentially refine).
 
 ### Task: Implement Background Notifications
 

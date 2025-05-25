@@ -3,11 +3,6 @@ import * as FileSystem from 'expo-file-system';
 import * as Crypto from 'expo-crypto'; // Import for hashing
 import * as Network from 'expo-network'; // Import expo-network
 import { ERROR_MESSAGES } from '../constants/errorMessages'; // Import error messages
-import { CostTracker } from '../utils/costTracker'; // Import CostTracker
-import {
-    getLastFrameFromUrlAsBase64,
-    FrameExtractionResult // Import the interface
-} from './VideoFrameExtractor';
 import { stitchVideosWithShotstack } from './VideoStitcher'; // Import ClipInput if defined there, or define locally
 
 // Define ClipInput locally for now, will be moved/exported from VideoStitcher later
@@ -17,14 +12,15 @@ interface ClipInput {
 }
 
 // --- Constants ---
-const API_KEY = process.env.EXPO_PUBLIC_MINIMAX_API_KEY;
-const API_GROUP_ID = process.env.EXPO_PUBLIC_MINIMAX_GROUP_ID;
-const BASE_URL = 'https://api.minimaxi.chat';
-const CREATE_TASK_ENDPOINT = '/v1/video_generation';
-const QUERY_STATUS_ENDPOINT = '/v1/query/video_generation';
-const RETRIEVE_URL_ENDPOINT = '/v1/files/retrieve';
-const API_MODEL = 'I2V-01-Director';
-const POLLING_INTERVAL_MS = 10000; // 10 seconds (Increased from 5s)
+const VIDU_API_KEY = process.env.EXPO_PUBLIC_VIDU_API_KEY || 'YOUR_VIDU_API_KEY';
+const VIDU_API_SECRET = process.env.EXPO_PUBLIC_VIDU_API_SECRET || 'YOUR_VIDU_API_SECRET'; // If Vidu uses a secret
+const VIDU_BASE_URL = process.env.EXPO_PUBLIC_VIDU_BASE_URL || 'https://api.vidu.ai/v1'; // Placeholder
+const VIDU_CREATE_TASK_ENDPOINT = '/video_generation'; // Placeholder
+const VIDU_QUERY_STATUS_ENDPOINT = '/query/video_generation'; // Placeholder
+const VIDU_RETRIEVE_URL_ENDPOINT = '/files/retrieve'; // Placeholder, may not be needed if status gives URL+duration
+const VIDU_API_MODEL = 'vidu-reference-v1'; // Placeholder for Vidu's reference-to-video model
+
+const POLLING_INTERVAL_MS = 10000; // 10 seconds
 const MAX_POLLING_TIME_MS = 5 * 60 * 1000; // 5 minutes
 const ESTIMATED_VIDEO_DURATION_SECONDS = 10; // TODO: Adjust based on API or make configurable
 
@@ -37,7 +33,7 @@ const videoCacheMetadataFile = videoCacheDir + 'metadata.json';
 // Define the GenerationProgress type (needs to be accessible by screen and service)
 // Consider moving this to a shared types file (e.g., types/video.ts)
 export interface GenerationProgress {
-  stage: 'initializing' | 'generating' | 'extracting' | 'stitching' | 'complete' | 'error';
+  stage: 'initializing' | 'generating' | 'stitching' | 'complete' | 'error';
   currentClip?: number;
   totalClips?: number;
   overallProgress: number; // 0 to 1 representing the entire process
@@ -91,6 +87,8 @@ interface QueryStatusResponse {
   task_id: string;
   status: 'Processing' | 'Success' | 'Fail' | string; // API might return other strings
   file_id?: string;
+  download_url?: string; // Vidu might return download_url directly
+  duration_seconds?: number; // EXPECTING Vidu API to provide this
   base_resp: BaseResponse;
 }
 
@@ -102,6 +100,7 @@ interface RetrieveUrlResponse {
     filename: string;
     purpose: string;
     download_url: string;
+    duration_seconds?: number; // EXPECTING Vidu API to provide this, or it might be in QueryStatusResponse
   };
   base_resp: BaseResponse;
 }
@@ -162,13 +161,9 @@ const SUBJECT_DESCRIPTION = "pet"; // TODO: Enhance this later if possible
 // Check API config during startup
 const _checkApiConfigStartup = () => {
   if (__DEV__) {
-    if (!API_KEY) {
-      console.warn("API Key not configured. Please set EXPO_PUBLIC_MINIMAX_API_KEY in your .env file.");
-      Alert.alert("API Key Missing", "Please configure the MiniMax API key in .env.");
-    }
-    if (!API_GROUP_ID) {
-      console.warn("Group ID not configured. Please set EXPO_PUBLIC_MINIMAX_GROUP_ID in your .env file.");
-      Alert.alert("Group ID Missing", "Please configure the MiniMax Group ID in .env.");
+    if (!VIDU_API_KEY) {
+      console.warn("Vidu API Key not configured. Please set EXPO_PUBLIC_VIDU_API_KEY in your .env file.");
+      Alert.alert("API Key Missing", "Please configure the Vidu API key in .env.");
     }
   }
 };
@@ -190,8 +185,8 @@ const _checkNetworkConnectivity = async () => {
 
 // Check API Configuration (Runtime)
 const _checkApiConfiguration = () => {
-  if (!API_KEY || !API_GROUP_ID) {
-    console.error("API Key or Group ID is missing in environment configuration.");
+  if (!VIDU_API_KEY) {
+    console.error("Vidu API Key or Secret is missing in environment configuration.");
     throw new Error(ERROR_MESSAGES.API_CONFIG_ERROR);
   }
 };
@@ -308,119 +303,159 @@ const _encodeImageAsDataUri = async (imageUri: string): Promise<string> => {
 
 // API Interaction
 async function _fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(options.headers || {});
-  headers.set('Authorization', `Bearer ${API_KEY}`);
-  headers.set('GroupId', API_GROUP_ID!);
-  if (options.method === 'POST' || options.method === 'PUT' || options.method === 'PATCH') {
-    headers.set('Content-Type', 'application/json');
-  }
+  const headers = {
+    ...options.headers,
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${VIDU_API_KEY}`, // Assuming Bearer token auth for Vidu
+  };
+
   return fetch(url, { ...options, headers });
 }
 
-const _createApiTask = async (prompt: string, imageDataUri: string): Promise<string> => {
-  console.log("Creating generation task...");
-  const url = `${BASE_URL}${CREATE_TASK_ENDPOINT}`;
+const _createApiTask = async (prompt: string, petImageReferenceUrl: string): Promise<string> => {
+  _checkApiConfiguration(); // Ensure API keys are checked
+
   const body = JSON.stringify({
-    model: API_MODEL,
+    model: VIDU_API_MODEL,
     prompt: prompt,
-    first_frame_image: imageDataUri,
-    prompt_optimizer: true,
+    reference_image_url: petImageReferenceUrl, // Assuming Vidu takes a URL
   });
 
-  const response = await _fetchWithAuth(url, { method: 'POST', body });
+  console.log("Creating Vidu API task with body:", body);
+
+  const response = await _fetchWithAuth(`${VIDU_BASE_URL}${VIDU_CREATE_TASK_ENDPOINT}`, {
+    method: 'POST',
+    body: body,
+  });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Create Task API Error (${response.status}): ${errorText}`);
-    throw new Error(ERROR_MESSAGES.API_REQUEST_FAILED);
+    const errorBody = await response.text();
+    console.error(`Vidu API task creation failed with status ${response.status}:`, errorBody);
+    throw new Error(`Vidu API error (${response.status}): ${errorBody || response.statusText}`);
   }
 
-  const result: CreateTaskResponse = await response.json();
-  if (result.base_resp?.status_code !== 0 || !result.task_id) {
-    console.error("Create Task API returned non-zero status or missing task_id:", result.base_resp);
-    throw new Error(ERROR_MESSAGES.API_REQUEST_FAILED);
+  const data: CreateTaskResponse = await response.json();
+  if (data.base_resp && data.base_resp.status_code !== 0) { // Assuming Vidu has a similar base_resp structure
+    console.error("Vidu API task creation returned an error:", data.base_resp.status_msg);
+    throw new Error(`Vidu API error: ${data.base_resp.status_msg}`);
   }
-  console.log(`Task created successfully. Task ID: ${result.task_id}`);
-  return result.task_id;
+  if (!data.task_id) {
+    console.error("Vidu API task creation response did not include a task_id:", data);
+    throw new Error("Failed to get task_id from Vidu API.");
+  }
+  console.log("Vidu API task created successfully, task_id:", data.task_id);
+  return data.task_id;
 };
 
-const _pollApiTaskStatus = async (taskId: string, onProgress: (progress: number) => void): Promise<string> => {
-  console.log("Polling task status...");
-  const startTime = Date.now();
-  let pollingAttempts = 0;
+interface ViduTaskCompletionResult {
+  fileId?: string; // If Vidu uses file IDs for retrieval
+  videoUrl?: string; // If Vidu returns the URL directly
+  durationSeconds: number;
+}
+const _pollApiTaskStatus = async (taskId: string, onProgress: (progress: number) => void): Promise<ViduTaskCompletionResult> => {
+  _checkApiConfiguration();
+  let attempts = 0;
+  const maxAttempts = MAX_POLLING_TIME_MS / POLLING_INTERVAL_MS;
+  let lastReportedProgress = 0;
 
-  while (Date.now() - startTime < MAX_POLLING_TIME_MS) {
-    pollingAttempts++;
-    const url = `${BASE_URL}${QUERY_STATUS_ENDPOINT}?task_id=${taskId}`;
+  console.log(`Polling Vidu API for task_id: ${taskId}`);
+
+  const queryParams = new URLSearchParams({ task_id: taskId }).toString();
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const progress = Math.min(0.99, attempts / maxAttempts); // Cap at 0.99 until success
+    if (progress > lastReportedProgress) {
+      onProgress(progress);
+      lastReportedProgress = progress;
+    }
 
     try {
-      const response = await _fetchWithAuth(url);
+      const response = await _fetchWithAuth(`${VIDU_BASE_URL}${VIDU_QUERY_STATUS_ENDPOINT}?${queryParams}`);
+      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Query Status API Error (${response.status}) Attempt ${pollingAttempts}: ${errorText}`);
-        if ([400, 401, 403, 404].includes(response.status)) {
-          throw new Error(ERROR_MESSAGES.VIDEO_GENERATION_FAILED); // Fatal polling error
+        if (response.status >= 500 && attempts < maxAttempts) {
+            console.warn(`Vidu API poll attempt ${attempts} failed with server error ${response.status}. Retrying...`);
+            await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
+            continue;
         }
-        // Non-fatal error, will retry after delay
-      } else {
-        const result: QueryStatusResponse = await response.json();
-        if (result.base_resp?.status_code !== 0) {
-          console.error(`Query Status API returned non-zero status: ${result.base_resp?.status_msg}`);
-          throw new Error(ERROR_MESSAGES.VIDEO_GENERATION_FAILED);
-        }
+        const errorBody = await response.text();
+        console.error(`Vidu API poll failed with status ${response.status}:`, errorBody);
+        throw new Error(`Vidu API error (${response.status}): ${errorBody || response.statusText}`);
+      }
 
-        console.log(`Polling Attempt ${pollingAttempts}: Status - ${result.status}`);
-        const elapsedRatio = Math.min(1, (Date.now() - startTime) / MAX_POLLING_TIME_MS);
-        onProgress(0.2 + elapsedRatio * 0.6); // Progress between 20% and 80%
+      const data: QueryStatusResponse = await response.json();
 
-        if (result.status === 'Success') {
-          if (!result.file_id) {
-            console.error("Polling success but missing file_id");
-            throw new Error(ERROR_MESSAGES.VIDEO_GENERATION_FAILED);
+      if (data.base_resp && data.base_resp.status_code !== 0) {
+        console.error("Vidu API poll returned an error in base_resp:", data.base_resp.status_msg);
+        throw new Error(`Vidu API error: ${data.base_resp.status_msg}`);
+      }
+
+      console.log(`Vidu task ${taskId} status: ${data.status}, attempt: ${attempts}`);
+
+      switch (data.status) {
+        case 'Success':
+          onProgress(1); // Full progress on success
+          if ((!data.file_id && !data.download_url) || typeof data.duration_seconds !== 'number') {
+            console.error("Vidu API success response missing file_id/download_url or duration_seconds:", data);
+            throw new Error("Vidu API success response incomplete.");
           }
-          console.log(`Task successful. File ID: ${result.file_id}`);
-          return result.file_id;
-        } else if (result.status === 'Fail') {
-          console.error("Task failed during generation.");
-          throw new Error(ERROR_MESSAGES.VIDEO_GENERATION_FAILED);
-        }
-        // Status is Processing or Queuing, continue polling
+          console.log("Vidu task successful. File ID/URL:", data.file_id || data.download_url, "Duration:", data.duration_seconds);
+          return { 
+            fileId: data.file_id, 
+            videoUrl: data.download_url, 
+            durationSeconds: data.duration_seconds 
+          };
+        case 'Fail':
+          console.error("Vidu task failed:", data);
+          throw new Error(data.base_resp?.status_msg || 'Vidu task failed without a specific message.');
+        case 'Processing':
+          break;
+        default:
+          console.warn(`Received unexpected Vidu task status: ${data.status}`);
+          break;
       }
-    } catch (pollError) {
-      console.error(`Error during polling attempt ${pollingAttempts}:`, pollError);
-      if (pollError instanceof Error && pollError.message === ERROR_MESSAGES.VIDEO_GENERATION_FAILED) {
-        throw pollError; // Re-throw fatal errors
+    } catch (error) {
+      if (!(error instanceof Error && error.message.startsWith('Vidu API error'))) {
+        throw error;
       }
-      // Non-fatal error, will retry after delay
+      throw error;
     }
 
     await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
   }
 
-  // Loop finished without returning fileId
-  console.error("Polling timed out.");
-  throw new Error(ERROR_MESSAGES.API_TIMEOUT);
+  console.error(`Vidu task polling timed out for task_id: ${taskId}`);
+  throw new Error("Vidu task polling timed out.");
 };
 
-const _retrieveApiVideoUrl = async (fileId: string): Promise<string> => {
-  console.log("Retrieving download URL...");
-  const url = `${BASE_URL}${RETRIEVE_URL_ENDPOINT}?file_id=${fileId}`;
-  const response = await _fetchWithAuth(url);
+const _retrieveApiVideoUrl = async (fileId: string): Promise<{ videoUrl: string, durationSeconds: number }> => {
+  _checkApiConfiguration();
+  const queryParams = new URLSearchParams({ file_id: fileId }).toString();
+  
+  console.log(`Retrieving Vidu video URL for file_id: ${fileId}`);
+
+  const response = await _fetchWithAuth(`${VIDU_BASE_URL}${VIDU_RETRIEVE_URL_ENDPOINT}?${queryParams}`);
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Retrieve URL API Error (${response.status}): ${errorText}`);
-    throw new Error(ERROR_MESSAGES.API_REQUEST_FAILED);
+    const errorBody = await response.text();
+    console.error(`Vidu API retrieve URL failed with status ${response.status}:`, errorBody);
+    throw new Error(`Vidu API error (${response.status}): ${errorBody || response.statusText}`);
   }
 
-  const result: RetrieveUrlResponse = await response.json();
-  if (result.base_resp?.status_code !== 0 || !result.file?.download_url) {
-    console.error("Retrieve URL API returned non-zero status or missing URL:", result.base_resp, result.file);
-    throw new Error(ERROR_MESSAGES.API_REQUEST_FAILED);
+  const data: RetrieveUrlResponse = await response.json();
+
+  if (data.base_resp && data.base_resp.status_code !== 0) {
+    console.error("Vidu API retrieve URL returned an error:", data.base_resp.status_msg);
+    throw new Error(`Vidu API error: ${data.base_resp.status_msg}`);
   }
 
-  console.log(`Download URL retrieved: ${result.file.download_url}`);
-  return result.file.download_url;
+  if (!data.file || !data.file.download_url || typeof data.file.duration_seconds !== 'number') {
+    console.error("Vidu API retrieve URL response incomplete (missing download_url or duration_seconds):", data);
+    throw new Error("Failed to get video URL or duration from Vidu API retrieve endpoint.");
+  }
+  console.log("Vidu video URL retrieved:", data.file.download_url, "Duration:", data.file.duration_seconds);
+  return { videoUrl: data.file.download_url, durationSeconds: data.file.duration_seconds };
 };
 
 // --- Main Exported Function ---
@@ -430,58 +465,81 @@ export const generateVideo = async ({
   themeId,
   onProgress = () => { }, // Default empty progress handler
 }: GenerationOptions): Promise<GenerationResult> => {
-  let cacheKey: string | null = null;
+  console.log("Starting single video generation...");
+  let currentProgressState: GenerationProgress = { stage: 'initializing', overallProgress: 0 };
+
+  const updateSingleProgress = (stage: GenerationProgress['stage'], progressOverride?: number, message?: string) => {
+    currentProgressState = {
+      stage,
+      overallProgress: progressOverride !== undefined ? progressOverride : currentProgressState.overallProgress,
+      message: message || currentProgressState.message
+    };
+    // Adapt to the simple onProgress for the old generateVideo function
+    if (progressOverride !== undefined) onProgress(progressOverride);
+  };
+
   try {
-    // 1. Pre-checks
+    updateSingleProgress('initializing', 0.05, "Checking setup...");
     await _checkNetworkConnectivity();
-    _checkApiConfiguration();
+    _checkApiConfiguration(); // This now checks Vidu config, which might be unintended if this function is meant for Minimax
+
     const themeDetails = _getThemeDetails(themeId);
 
-    // 2. Check Cache
-    const cacheResult = await _checkCache(imageUri, themeId);
-    cacheKey = cacheResult.cacheKey; // Store cache key for potential writing later
-    if (cacheResult.cachedUrl) {
-      onProgress(1);
-      return { success: true, videoUrl: cacheResult.cachedUrl };
+    // TODO: This function uses Minimax-style caching. This needs to be re-evaluated if generateVideo is kept and used with Vidu.
+    const { cacheKey, cachedUrl } = await _checkCache(imageUri, themeId);
+    if (cachedUrl) {
+      console.log("Returning cached video URL:", cachedUrl);
+      updateSingleProgress('complete', 1, "Video ready (from cache).");
+      return { success: true, videoUrl: cachedUrl };
     }
 
-    console.log(`Starting video generation for theme: ${themeId} (${themeDetails.style})`);
-    onProgress(0.05); // Initial progress
-
-    // 3. Encode Image
+    updateSingleProgress('generating', 0.1, "Preparing image...");
+    // TODO: If this function is to use Vidu, _encodeImageAsDataUri might not be needed if imageUri is already a URL.
+    // For Vidu, _createApiTask now expects petImageReferenceUrl, not imageDataUri.
+    // This function needs significant changes if it's to use Vidu.
     const imageDataUri = await _encodeImageAsDataUri(imageUri);
-    onProgress(0.1);
 
-    // 4. Create API Task
-    const taskId = await _createApiTask(themeDetails.prompt, imageDataUri);
-    onProgress(0.2);
+    updateSingleProgress('generating', 0.15, "Creating video task...");
+    // TODO: _createApiTask is now for Vidu. This will fail if Minimax params are expected.
+    // It now takes (prompt, petImageReferenceUrl). Here, imageDataUri is passed as petImageReferenceUrl.
+    const taskId = await _createApiTask(themeDetails.prompt, imageDataUri); 
 
-    // 5. Poll API Task Status
-    const fileId = await _pollApiTaskStatus(taskId, onProgress);
-    onProgress(0.9); // Progress after polling success
+    updateSingleProgress('generating', 0.2, "Video generation in progress...");
+    // TODO: _pollApiTaskStatus is now for Vidu and returns ViduTaskCompletionResult.
+    // The old code expected a fileId (string).
+    const viduResult = await _pollApiTaskStatus(taskId, (pollProgress) => {
+      updateSingleProgress('generating', 0.2 + pollProgress * 0.7); // Scale poll progress to 0.2-0.9
+    });
+    // updateSingleProgress('generating', 0.9, "Finalizing video..."); // Already handled by pollProgress reaching 1
 
-    // 6. Retrieve Video URL
-    const finalVideoUrl = await _retrieveApiVideoUrl(fileId);
-    onProgress(1); // Final progress
+    // TODO: _retrieveApiVideoUrl is now for Vidu and returns { videoUrl: string, durationSeconds: number }.
+    // The old code expected a videoUrl (string).
+    // Need to decide if we need a separate retrieval if viduResult.videoUrl is present.
+    let finalVideoUrl: string;
+    if (viduResult.videoUrl) {
+        finalVideoUrl = viduResult.videoUrl;
+    } else if (viduResult.fileId) {
+        const retrievalResult = await _retrieveApiVideoUrl(viduResult.fileId);
+        finalVideoUrl = retrievalResult.videoUrl;
+    } else {
+        throw new Error("Failed to get video URL from Vidu task result.");
+    }
+    
+    updateSingleProgress('complete', 1, "Video ready!");
 
-    // 7. Record Cost & Cache Result (Run in parallel, don't block return)
+    // Run in parallel, don't block return
     Promise.all([
-        CostTracker.recordApiCallCost(ESTIMATED_VIDEO_DURATION_SECONDS).catch(costError => {
-          console.error("Failed to record API call cost:", costError);
-        }),
-        _cacheResult(cacheKey, finalVideoUrl) // Use the cacheKey obtained earlier
+        _cacheResult(cacheKey, finalVideoUrl).catch(cacheError => {
+            console.error("Failed to cache video result:", cacheError);
+        })
     ]);
 
     return { success: true, videoUrl: finalVideoUrl };
 
-  } catch (error) {
-    // Catch errors from any step
-    console.error("Video generation process failed:", error);
-    const errorMessage = (error instanceof Error && Object.values(ERROR_MESSAGES).includes(error.message))
-      ? error.message
-      : ERROR_MESSAGES.VIDEO_GENERATION_FAILED;
-    // Ensure progress indicates completion/failure if an error occurs mid-process
-    onProgress(1); 
+  } catch (error: any) {
+    console.error("Video Generation Failed (single):", error);
+    const errorMessage = error.message || ERROR_MESSAGES.GENERIC_ERROR || "An unknown error occurred.";
+    updateSingleProgress('error', currentProgressState.overallProgress, errorMessage); // Report error with current progress
     return { success: false, error: errorMessage };
   }
 };
@@ -490,181 +548,110 @@ export const generateVideo = async ({
 
 // Option 2: Create a new function for narrative generation (Recommended)
 export const generateNarrativeVideo = async ({
-  imageUri,
+  imageUri, // This is the petReferenceImageURL for Vidu
   themeId,
   onProgress = () => { },
 }: NarrativeGenerationOptions): Promise<NarrativeGenerationResult> => {
-  console.log(`Starting narrative generation for theme: ${themeId}`);
-  const totalSteps = 5; // TEMP: 1 init + 2 generates + 1 extract + 1 stitch (Reverted from 11)
-  let currentStep = 0;
-  // Keep track of progress state locally within the service for error reporting
-  let currentProgressState: GenerationProgress = { stage: 'initializing', overallProgress: 0 };
+  console.log("Starting Vidu narrative video generation...");
+  let overallProgress = 0;
 
-  const updateProgress = (stage: GenerationProgress['stage'], currentClip?: number, message?: string) => {
-    currentStep++;
-    const overallProgress = Math.min(1, currentStep / totalSteps);
-    currentProgressState = {
+  const updateProgress = (stage: GenerationProgress['stage'], currentClip?: number, totalClips?: number, message?: string, stageProgress?: number) => {
+    let calculatedOverallProgress = 0;
+    const initContribution = 0.05; 
+    const generationContribution = 0.75;
+    const stitchingContribution = 0.20; 
+
+    if (stage === 'initializing') {
+      calculatedOverallProgress = (stageProgress || 0) * initContribution;
+    } else if (stage === 'generating' && typeof currentClip === 'number' && typeof totalClips === 'number' && totalClips > 0) {
+      const baseProgressForGeneration = initContribution;
+      const progressWithinCurrentClip = stageProgress || 0;
+      const completedClipsProgress = ((currentClip -1) / totalClips) * generationContribution;
+      const currentClipSubProgress = (progressWithinCurrentClip / totalClips) * generationContribution;
+      calculatedOverallProgress = baseProgressForGeneration + completedClipsProgress + currentClipSubProgress;
+    } else if (stage === 'stitching') {
+      const baseProgressForStitching = initContribution + generationContribution;
+      calculatedOverallProgress = baseProgressForStitching + ((stageProgress || 0) * stitchingContribution);
+    } else if (stage === 'complete') {
+      calculatedOverallProgress = 1;
+    } else if (stage === 'error') {
+      calculatedOverallProgress = overallProgress; 
+    }
+    
+    overallProgress = Math.min(1, Math.max(0, calculatedOverallProgress));
+
+    onProgress({
       stage,
       currentClip,
-      totalClips: 2, // TEMP: Reverted from 5
-      overallProgress,
-      message
-    };
-    onProgress(currentProgressState);
+      totalClips,
+      overallProgress: overallProgress,
+      message: message || stage.charAt(0).toUpperCase() + stage.slice(1),
+    });
   };
 
+  let currentTotalClips = 0;
   try {
-    await _checkNetworkConnectivity();
-    _checkApiConfiguration();
-    
-    // --- Budget Check (Before starting generation) ---
-    const totalEstimatedDuration = ESTIMATED_VIDEO_DURATION_SECONDS * 5;
-    const canAfford = await CostTracker.canMakeApiCall(totalEstimatedDuration);
-    if (!canAfford) {
-      console.warn("Narrative generation blocked: Estimated cost exceeds budget.");
-      throw new Error(ERROR_MESSAGES.BUDGET_EXCEEDED);
-    }
-    // --- End Budget Check ---
-
-    updateProgress('initializing', undefined, "Preparing your pet's debut...");
-
     const narrativePrompts = _getNarrativePrompts(themeId);
-    // Store URI and Duration
-    const videoClipData: ClipInput[] = []; 
-    let currentInputImageUri = imageUri;
-    let currentInputIsDataUri = false;
+    currentTotalClips = narrativePrompts.length;
+    if (currentTotalClips === 0) {
+        throw new Error ("No narrative prompts found for the selected theme.");
+    }
 
-    // --- Loop for 2 Clips (TEMP) ---
-    const failedClips: number[] = []; 
-    let lastSuccessfulClipDuration = ESTIMATED_VIDEO_DURATION_SECONDS; // Fallback/initial estimate
+    updateProgress('initializing', undefined, currentTotalClips, "Checking setup...", 0.1);
+    await _checkNetworkConnectivity();
+    _checkApiConfiguration(); 
+    updateProgress('initializing', undefined, currentTotalClips, "Setup complete.", 1.0);
+    
+    const generatedClips: ClipInput[] = [];
 
-    for (let i = 0; i < 2; i++) { // TEMP: Kept at 2 clips for testing
-      const clipNumber = i + 1;
+    updateProgress('generating', 0, currentTotalClips, `Starting generation of ${currentTotalClips} clips...`, 0);
+
+    for (let i = 0; i < currentTotalClips; i++) {
+      const currentClipNumber = i + 1;
       const prompt = narrativePrompts[i];
-      console.log(`--- Generating Clip ${clipNumber}/2 ---`);
-      updateProgress('generating', clipNumber, `Generating clip ${clipNumber} of 2...`);
+      console.log(`Generating clip ${currentClipNumber}/${currentTotalClips} with prompt: "${prompt}"`);
+      updateProgress('generating', currentClipNumber, currentTotalClips, `Preparing clip ${currentClipNumber}: ${prompt.substring(0,30)}...`, 0.1);
 
-      let videoUrl: string | null = null;
-      let clipDuration: number = ESTIMATED_VIDEO_DURATION_SECONDS; // Default/estimate
+      const taskId = await _createApiTask(prompt, imageUri); 
+      updateProgress('generating', currentClipNumber, currentTotalClips, `Task ${taskId} created. Polling...`, 0.3);
+      
+      const { videoUrl: clipVideoUrl, durationSeconds: clipDuration } = await _pollApiTaskStatus(taskId, (pollProgress) => {
+        updateProgress('generating', currentClipNumber, currentTotalClips, `Clip ${currentClipNumber} progress: ${Math.round(pollProgress * 100)}%`, 0.3 + pollProgress * 0.6);
+      });
 
-      try {
-        // 1. Prepare Input Image
-        const imageDataUri = currentInputIsDataUri
-          ? currentInputImageUri
-          : await _encodeImageAsDataUri(currentInputImageUri);
-
-        // 2. Call API to generate the clip
-        const taskId = await _createApiTask(prompt, imageDataUri);
-        const fileId = await _pollApiTaskStatus(taskId, (pollProgress) => {
-          // Progress within polling is handled internally for now
-        });
-        videoUrl = await _retrieveApiVideoUrl(fileId);
-        // Clip generated successfully, but duration is unknown yet.
-        console.log(`Clip ${clipNumber} generated successfully: ${videoUrl}`);
-
-        // --- Record Cost using ESTIMATE for now --- 
-        // TODO: Refine cost tracking if actual duration differs significantly
-        await CostTracker.recordApiCallCost(ESTIMATED_VIDEO_DURATION_SECONDS);
-        // --- End Record Cost ---
-
-      } catch (generationError: any) {
-        console.error(`!!! Failed to generate clip ${clipNumber}:`, generationError.message);
-        failedClips.push(clipNumber);
-        videoUrl = null; // Ensure videoUrl is null on failure
+      if (!clipVideoUrl || clipDuration === undefined) {
+        throw new Error(`Clip ${currentClipNumber} generation failed or did not return URL/duration.`);
       }
-
-      // 3. Extract Last Frame & Get Duration (only if generation succeeded)
-      if (videoUrl) {
-          if (i < 1) { // If not the last clip, extract frame for next iteration
-              console.log(`--- Extracting Frame & Duration from Clip ${clipNumber}/2 ---`);
-              updateProgress('extracting', clipNumber, `Analyzing scene ${clipNumber}...`);
-              try {
-                  // Get Base64 AND Duration
-                  const extractionResult: FrameExtractionResult = await getLastFrameFromUrlAsBase64(videoUrl);
-                  currentInputImageUri = extractionResult.base64DataUri;
-                  clipDuration = extractionResult.durationSeconds; // Get actual duration
-                  lastSuccessfulClipDuration = clipDuration; // Store for potential fallback
-                  currentInputIsDataUri = true;
-                  console.log(`Frame extracted for clip ${clipNumber}. Duration: ${clipDuration.toFixed(2)}s. Next input is Base64.`);
-                  // Add data for successful clip (URL + actual duration)
-                  videoClipData.push({ uri: videoUrl, duration: clipDuration });
-              } catch (extractError: any) {
-                  console.error(`!!! Failed to extract frame/duration from clip ${clipNumber} (${videoUrl}):`, extractError.message);
-                  console.warn(`Falling back to original image for next clip.`);
-                  currentInputImageUri = imageUri;
-                  currentInputIsDataUri = false;
-                  // Add data for successful clip but use ESTIMATED duration as fallback
-                  console.warn(`Using estimated duration (${ESTIMATED_VIDEO_DURATION_SECONDS}s) for clip ${clipNumber} due to extraction error.`);
-                  videoClipData.push({ uri: videoUrl, duration: ESTIMATED_VIDEO_DURATION_SECONDS });
-                  clipDuration = ESTIMATED_VIDEO_DURATION_SECONDS; // Ensure clipDuration reflects estimate
-                  lastSuccessfulClipDuration = clipDuration; // Update fallback
-              }
-          } else { // For the very last clip, we still need its duration for stitching
-               console.log(`--- Getting Duration for Last Clip ${clipNumber}/2 ---`);
-               updateProgress('extracting', clipNumber, `Finalizing clip ${clipNumber}...`);
-               try {
-                    // Use a simpler function or modify extractor if Base64 isn't needed
-                    // For now, let's call the same function but ignore the base64 part
-                    const extractionResult: FrameExtractionResult = await getLastFrameFromUrlAsBase64(videoUrl);
-                    clipDuration = extractionResult.durationSeconds; // Get actual duration
-                    console.log(`Duration for last clip ${clipNumber}: ${clipDuration.toFixed(2)}s.`);
-                     videoClipData.push({ uri: videoUrl, duration: clipDuration });
-               } catch (extractError: any) {
-                   console.error(`!!! Failed to get duration for last clip ${clipNumber} (${videoUrl}):`, extractError.message);
-                   console.warn(`Using estimated duration (${ESTIMATED_VIDEO_DURATION_SECONDS}s) for last clip ${clipNumber} due to error.`);
-                   videoClipData.push({ uri: videoUrl, duration: ESTIMATED_VIDEO_DURATION_SECONDS });
-               }
-          }
-      } else if (i < 1) {
-          // Generation failed, skip extraction, use original image for next
-          console.log(`Skipping frame extraction for clip ${clipNumber} because generation failed.`);
-          currentInputImageUri = imageUri; 
-          currentInputIsDataUri = false;
-      }
+      
+      console.log(`Clip ${currentClipNumber} generated: ${clipVideoUrl}, Duration: ${clipDuration}s`);
+      generatedClips.push({ uri: clipVideoUrl, duration: clipDuration });
+      updateProgress('generating', currentClipNumber, currentTotalClips, `Clip ${currentClipNumber} complete.`, 1.0);
     }
 
-    console.log("--- Clip Generation Loop Complete ---");
-    console.log("Successful Video Data:", videoClipData); // Log the data structure
-    console.log("Failed Clip Numbers:", failedClips);
-
-    // Check if any clips were generated successfully before attempting to stitch
-    if (videoClipData.length === 0) {
-        console.error("No video clips were successfully processed. Aborting stitching.");
-        throw new Error(ERROR_MESSAGES.VIDEO_GENERATION_FAILED + " (No clips succeeded)");
+    if (generatedClips.length !== currentTotalClips) {
+      throw new Error("Not all clips were generated successfully.");
     }
 
-    // --- Stitching Step ---
-    console.log("--- Stitching Final Video ---");
-    updateProgress('stitching', undefined, "Editing the final cut...");
-    let finalStitchedUri: string;
-    try {
-        // Pass the array of objects with URI and duration
-        finalStitchedUri = await stitchVideosWithShotstack(videoClipData);
-        console.log("Video stitching successful. Final URI:", finalStitchedUri);
-    } catch (stitchError: any) {
-        console.error("Video stitching failed:", stitchError);
-        throw new Error(`Stitching failed: ${stitchError.message}`);
+    updateProgress('stitching', undefined, currentTotalClips, "All clips generated. Starting stitching...", 0.1);
+    
+    const finalStitchedUri = await stitchVideosWithShotstack(generatedClips, 'hd');
+
+    if (!finalStitchedUri) {
+      throw new Error("Video stitching failed to return a URL.");
     }
     
-    updateProgress('complete', undefined, "Premiere ready!");
-    console.log("Narrative generation complete. Final Video URI:", finalStitchedUri);
-
+    updateProgress('stitching', undefined, currentTotalClips, "Stitching complete.", 1.0);
+    updateProgress('complete', undefined, currentTotalClips, "Narrative video generation complete!", 1.0);
     return {
       success: true,
-      // videoUrls: videoClipUrls, // Keep original URLs if needed, or derive from videoClipData
-      videoUrls: videoClipData.map(clip => clip.uri),
-      stitchedVideoUri: finalStitchedUri, 
+      videoUrls: generatedClips.map(clip => clip.uri),
+      stitchedVideoUri: finalStitchedUri,
     };
 
   } catch (error: any) {
-    console.error("Narrative Generation Failed:", error);
-    const errorMessage = error.message || ERROR_MESSAGES.GENERIC_ERROR || "An unknown error occurred during generation.";
-    // Update progress on error - use the locally tracked progress state
-    onProgress({ ...currentProgressState, stage: 'error', message: errorMessage });
-    return {
-      success: false,
-      error: errorMessage,
-    };
+    console.error("Error in Vidu narrative video generation:", error);
+    updateProgress('error', undefined, currentTotalClips, error.message || ERROR_MESSAGES.GENERIC_ERROR, 1.0);
+    return { success: false, error: error.message || ERROR_MESSAGES.GENERIC_ERROR };
   }
 };
 
@@ -689,11 +676,6 @@ export const generateVideo = async ({
 // ... existing _createApiTask, _pollApiTaskStatus, _retrieveApiVideoUrl ...
 
 
-// --- Cost Tracking Integration (Example) ---
-// Make sure CostTracker is initialized somewhere (e.g., in App.tsx or context)
-// Inside _createApiTask or after successful generation:
-// CostTracker.recordCost('video_generation', API_MODEL, estimatedCost); // Need to estimate cost
-
 // --- TODO & Considerations ---
 // 1. Implement VideoFrameExtractor.getLastFrameFromUrlAsBase64
 // 2. Implement VideoStitcher.stitchVideos
@@ -708,44 +690,40 @@ export const generateVideo = async ({
 // ... existing _createApiTask, _pollApiTaskStatus, _retrieveApiVideoUrl ... 
 
 // --- New Function to Query Task Status (for Background Task) ---
-export const queryTaskStatus = async (taskId: string): Promise<{ success: boolean; status?: QueryStatusResponse['status']; videoUrl?: string; error?: string }> => {
-  console.log(`Querying status for task ID: ${taskId}`);
+export const queryTaskStatus = async (taskId: string): Promise<{ success: boolean; status?: QueryStatusResponse['status']; videoUrl?: string; error?: string, durationSeconds?: number }> => {
+  console.log(`Querying Vidu status for task_id: ${taskId}`);
   try {
-    // Reuse polling logic internally, but just check once
-    const url = `${BASE_URL}${QUERY_STATUS_ENDPOINT}?task_id=${taskId}`;
-    const response = await _fetchWithAuth(url, { method: 'GET' });
+    _checkApiConfiguration(); // Vidu check
+    const queryParams = new URLSearchParams({ task_id: taskId }).toString();
+    const response = await _fetchWithAuth(`${VIDU_BASE_URL}${VIDU_QUERY_STATUS_ENDPOINT}?${queryParams}`);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API Query Status Error (${response.status}): ${errorText}`);
-      throw new Error(ERROR_MESSAGES.API_REQUEST_FAILED + ` (Status: ${response.status})`);
+      const errorBody = await response.text();
+      console.error(`Vidu API query status failed with status ${response.status}:`, errorBody);
+      return { success: false, error: `Vidu API error (${response.status}): ${errorBody || response.statusText}` };
     }
 
-    const result: QueryStatusResponse = await response.json();
+    const data: QueryStatusResponse = await response.json();
 
-    if (result.base_resp?.status_code !== 0) {
-      console.error(`API Query Status Business Error (${result.base_resp?.status_code}): ${result.base_resp?.status_msg}`);
-      throw new Error(result.base_resp?.status_msg || ERROR_MESSAGES.API_REQUEST_FAILED);
+    if (data.base_resp && data.base_resp.status_code !== 0) {
+      console.error("Vidu API query status returned an error in base_resp:", data.base_resp.status_msg);
+      return { success: false, error: `Vidu API error: ${data.base_resp.status_msg}` };
     }
+    
+    console.log(`Vidu task ${taskId} status: ${data.status}`);
 
-    console.log(`Task ${taskId} status: ${result.status}`);
-
-    let videoUrl: string | undefined = undefined;
-    if (result.status === 'Success' && result.file_id) {
-      try {
-        videoUrl = await _retrieveApiVideoUrl(result.file_id);
-      } catch (retrieveError: any) {
-        console.error(`Failed to retrieve video URL for completed task ${taskId}:`, retrieveError);
-        // Proceed without videoUrl, notification can still indicate success
-      }
+    // If Vidu returns download_url and duration_seconds directly in query status when task is 'Success'
+    if (data.status === 'Success' && data.download_url && typeof data.duration_seconds === 'number') {
+      return { success: true, status: data.status, videoUrl: data.download_url, durationSeconds: data.duration_seconds };
     }
-
-    return { success: true, status: result.status, videoUrl };
+    // If it's success but no URL/duration yet, it means _retrieveApiVideoUrl might be needed,
+    // but _pollApiTaskStatus should handle this transition based on file_id or direct url.
+    // This simplified queryTaskStatus is mostly for external checks if ever needed.
+    return { success: true, status: data.status };
 
   } catch (error: any) {
-    console.error(`Failed to query task status for ${taskId}:`, error);
-    // Use GENERIC_ERROR instead of UNKNOWN_GENERATION_ERROR
-    return { success: false, error: error.message || ERROR_MESSAGES.GENERIC_ERROR || "Unknown error querying task status." };
+    console.error("Error querying Vidu task status:", error);
+    return { success: false, error: error.message || ERROR_MESSAGES.GENERIC_ERROR };
   }
 };
 

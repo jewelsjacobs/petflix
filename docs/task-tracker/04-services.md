@@ -1,3 +1,31 @@
+### Task: Replace MiniMax API with Vidu Reference-to-Video API
+
+#### Description
+
+The MiniMax video generation API is being replaced with Vidu's reference-to-video API to improve visual consistency using a static pet picture. This change simplifies the logic by removing the need to extract the last frame of each video clip. We will continue using Shotstack for final stitching.
+
+#### Dependencies
+
+- [x] Vidu API key and endpoint configured
+- [x] Reference image uploaded and available via URL
+- [x] Update `VideoService.ts` to call Vidu instead of MiniMax
+- [x] Remove last frame extraction logic from `VideoService.ts`
+- [x] Remove frame extraction logic from `VideoFrameExtractor.ts` entirely
+- [ ] Test video generation with Vidu (validate API calls, output)
+- [ ] Ensure generated clips are compatible with Shotstack stitching
+- [ ] Update or add new test cases in `@test-plan/01-api.md`
+
+#### Priority
+
+High
+
+#### Instructions
+
+- [x] Replace `generateVideoWithMinimax()` with `generateVideoWithVidu()` in `VideoService.ts`
+- [x] Ensure each Vidu call includes the pet image as a persistent reference parameter
+- [x] Remove references to `getLastFrameFromUrlAsBase64` in `VideoService.ts`
+- [x] Delete `getLastFrameFromUrlAsBase64` and any supporting logic in `VideoFrameExtractor.ts`
+
 ### Task: Evaluate Shotstack Cloud Video Stitching API
 
 #### Description
@@ -33,16 +61,20 @@ High (Completed)
 - [x] Define necessary interfaces for Shotstack API.
 - [x] Implement API submission logic.
 - [x] Implement polling logic for Shotstack render status.
-- [ ] **(New)** Use actual video clip durations (fetched from MiniMax or analyzed) instead of estimates in the Shotstack timeline to **ensure smooth transitions**. (Remaining task: Improve transition timing)
+- [x] **(Completed)** Use actual video clip durations (fetched via `expo-av` in `VideoFrameExtractor`) and calculated start times in the Shotstack timeline to ensure correct sequencing.
 - [ ] Refine error handling for Shotstack specific issues.
 - [ ] Consider adding options for output resolution, aspect ratio, etc.
 
 ### Frame Extraction (`VideoFrameExtractor.ts`)
 
-- [x] Implement `getLastFrameFromUrlAsBase64` function using a suitable method (e.g., cloud function, server-side processing, or potentially a client-side library if feasible and performant).
-- [x] **(New)** Debug frame extraction implementation and its integration in `VideoService.ts` loop to ensure the correct frame is passed to subsequent clip generation. Ensure it handles potential errors gracefully.
+#### REFACTORING
+
+- [x] Implement `getLastFrameFromUrlAsBase64` function using a suitable method (Downloads video, uses `expo-av` for duration, `expo-video-thumbnails` for frame).
+- [x] **(Completed)** Debug frame extraction implementation and its integration in `VideoService.ts` loop (Now correctly provides frame and duration).
 
 ### Video Service (`VideoService.ts`) - Narrative Flow
+
+#### REFACTORING
 
 - [x] Implement loop for generating multiple clips (initially 5).
 - [x] Integrate frame extraction call between clip generations.
@@ -51,6 +83,6 @@ High (Completed)
 - [x] Add budget check before starting narrative generation.
 - [x] Record API cost per clip generation.
 - [x] **(New)** Investigate MiniMax API rate limits (20 RPM) and optimize polling frequency (`POLLING_INTERVAL_MS`) to avoid exceeding limits. Check if polling calls count towards the limit. (Polling interval increased to 10s)
-- [x] **(New)** Investigate how to obtain actual video clip duration from MiniMax API responses or by analyzing downloaded files. (Decided to use estimate for now)
+- [x] **(Completed)** Investigate how to obtain actual video clip duration (Solved via `expo-av` in `VideoFrameExtractor`).
 - [x] Refine error handling within the multi-clip generation loop.
 - [ ] Restore generation loop to 5 clips after testing/debugging is complete.
