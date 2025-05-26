@@ -7,7 +7,7 @@ import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/styles';
 import { useRouter } from 'expo-router';
 import * as Progress from 'react-native-progress';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing, withRepeat } from 'react-native-reanimated';
-import { generateNarrativeVideo } from '../services/VideoService';
+import { generateNarrativeVideo } from '../services';
 import { useAppContext } from '../context/AppContext';
 
 // Define more specific progress state type

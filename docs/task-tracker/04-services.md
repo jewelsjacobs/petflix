@@ -11,9 +11,9 @@ The MiniMax video generation API is being replaced with Vidu's reference-to-vide
 - [x] Update `VideoService.ts` to call Vidu instead of MiniMax
 - [x] Remove last frame extraction logic from `VideoService.ts`
 - [x] Remove frame extraction logic from `VideoFrameExtractor.ts` entirely
-- [ ] Test video generation with Vidu (validate API calls, output)
-- [ ] Ensure generated clips are compatible with Shotstack stitching
-- [ ] Update or add new test cases in `@test-plan/01-api.md`
+- [x] Test video generation with Vidu (validate API calls, output)
+- [x] Ensure generated clips are compatible with Shotstack stitching
+- [x] Update or add new test cases in `@test-plan/01-api.md`
 
 #### Priority
 

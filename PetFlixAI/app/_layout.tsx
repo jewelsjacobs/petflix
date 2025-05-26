@@ -8,7 +8,7 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { queryTaskStatus } from '../services/VideoService';
+import { queryTaskStatus } from '../services';
 import { AppProvider } from '../context/AppContext';
 import { useRouter } from 'expo-router';
 
@@ -37,8 +37,6 @@ TaskManager.defineTask<BackgroundTaskData>(VIDEO_STATUS_TASK_NAME, async ({ data
     console.error('Background Task Error:', error);
     return;
   }
-  // No specific data expected for this task, but check if needed in future
-  // if (data) { ... }
   
   console.log("Running background status check...");
   try {
@@ -51,21 +49,10 @@ TaskManager.defineTask<BackgroundTaskData>(VIDEO_STATUS_TASK_NAME, async ({ data
 
     // 2. Call API to check status
     console.log(`Background Task: Checking status for task ID: ${taskId}`);
-    const apiResult = await queryTaskStatus(taskId); // Use the actual service function
-    /* --- Placeholder --- 
-    const mockSuccess = Math.random() > 0.1; // Simulate potential API failure
-    const mockStatus = mockSuccess ? (Math.random() > 0.5 ? 'Success' : 'Processing') : 'Fail'; 
-    const apiResult = { 
-      success: mockSuccess,
-      status: mockStatus,
-      videoUrl: (mockStatus === 'Success') ? 'mock://video.mp4' : undefined,
-      error: !mockSuccess ? 'Simulated API query failure' : undefined 
-    };
-    console.log("Background Task: Mock API Result:", apiResult);
-    --- End Placeholder --- */
+    const apiResult = await queryTaskStatus(taskId);
 
     if (apiResult.success) {
-      if (apiResult.status === 'Success') {
+      if (apiResult.state === 'success') {
         console.log("Background Task: Generation successful!");
         // 3. Trigger notification
         await Notifications.scheduleNotificationAsync({
@@ -80,7 +67,7 @@ TaskManager.defineTask<BackgroundTaskData>(VIDEO_STATUS_TASK_NAME, async ({ data
         await AsyncStorage.removeItem('activeGenerationTaskId');
         console.log("Background Task: Cleared active task ID.");
         return BackgroundFetch.BackgroundFetchResult.NewData; // Indicate new data processed
-      } else if (apiResult.status === 'Fail') {
+      } else if (apiResult.state === 'failed') {
         console.log("Background Task: Generation failed.");
         // Optionally trigger failure notification
         await Notifications.scheduleNotificationAsync({
@@ -107,8 +94,6 @@ TaskManager.defineTask<BackgroundTaskData>(VIDEO_STATUS_TASK_NAME, async ({ data
     console.error("Background Task: Unexpected error:", taskError);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
-  // Should not happen, but return Failed just in case
-  // return TaskManager.Result.Failed; 
 });
 
 // --- End Background Task Definition ---
