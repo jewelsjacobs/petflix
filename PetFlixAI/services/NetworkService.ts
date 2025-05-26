@@ -3,7 +3,7 @@ import * as Network from 'expo-network';
 import { ERROR_MESSAGES } from '../constants/errorMessages';
 
 // API Configuration
-// API key is sensitive, so no EXPO_PUBLIC_ prefix
+// API key is sensitive, so no EXPO_PUBLIC_ prefix (will need secure storage in a production app)
 export const VIDU_API_KEY = process.env.VIDU_API_KEY || 'YOUR_VIDU_API_KEY';
 // API URL is non-sensitive, so use EXPO_PUBLIC_ prefix
 export const VIDU_BASE_URL = process.env.EXPO_PUBLIC_VIDU_BASE_URL || 'https://api.vidu.com/ent/v2';

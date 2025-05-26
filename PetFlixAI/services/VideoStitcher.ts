@@ -1,8 +1,8 @@
 import * as FileSystem from 'expo-file-system';
-// Assuming you have process.env configured, e.g., via react-native-dotenv
-// Make sure SHOTSTACK_API_KEY and SHOTSTACK_API_URL are in your .env file
+// Environment variables are loaded automatically by Expo
+// Make sure SHOTSTACK_API_KEY and EXPO_PUBLIC_SHOTSTACK_API_URL are in your .env file
 // Defaulting URL to stage environment
-// API key is sensitive, so no EXPO_PUBLIC_ prefix
+// API key is sensitive, so no EXPO_PUBLIC_ prefix (will need secure storage in a production app)
 const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY; 
 // API URL is non-sensitive, so use EXPO_PUBLIC_ prefix
 const SHOTSTACK_API_URL = process.env.EXPO_PUBLIC_SHOTSTACK_API_URL || 'https://api.shotstack.io/stage/render';

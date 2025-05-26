@@ -17,6 +17,7 @@ module.exports = function(api) {
         extensions: ['.js', '.jsx', '.ts', '.tsx', '.android.js', '.android.tsx', '.ios.js', '.ios.tsx']
       }],
       'react-native-reanimated/plugin'
+      // Expo handles environment variables automatically, no need for additional plugins
     ],
   };
 }; 
