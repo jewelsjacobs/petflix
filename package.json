@@ -5,6 +5,7 @@
     "expo-video": "^2.0.6",
     "expo-video-thumbnails": "^9.0.3",
     "react": "^19.1.0",
-    "react-native": "^0.79.1"
+    "react-native": "^0.79.1",
+    "expo-dev-client": "~5.0.20"
   }
 }

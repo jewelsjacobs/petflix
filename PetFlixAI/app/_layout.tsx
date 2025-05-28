@@ -132,7 +132,8 @@ async function checkTaskRegistration() {
   }
 }
 
-export default function Layout() {
+// Define Layout component separately and then export it as default
+function Layout() {
   const [fontsLoaded] = useFonts({
     // We don't need custom fonts yet, but this is where we'd load them
   });
@@ -222,3 +223,6 @@ export default function Layout() {
     </AppProvider>
   );
 } 
+
+// Export the Layout component as default
+export default Layout; 

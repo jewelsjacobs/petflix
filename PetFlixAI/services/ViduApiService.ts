@@ -24,6 +24,14 @@ import { ERROR_MESSAGES } from '../constants/errorMessages';
 export const createApiTask = async (prompt: string, petImageReferenceUrl: string): Promise<string> => {
   checkApiConfiguration();
 
+  // Make sure we have a valid URL for the image
+  if (!petImageReferenceUrl) {
+    throw new Error('Image reference URL is required');
+  }
+
+  // Log the image URL for debugging
+  console.log(`Using pet image URL: ${petImageReferenceUrl}`);
+  
   const body = JSON.stringify({
     model: VIDU_API_MODEL,
     images: [petImageReferenceUrl],
@@ -42,8 +50,40 @@ export const createApiTask = async (prompt: string, petImageReferenceUrl: string
   });
 
   if (!response.ok) {
-    const errorBody = await response.text();
-    console.error(`Vidu API task creation failed with status ${response.status}:`, errorBody);
+    let errorBody = '';
+    try {
+      errorBody = await response.text();
+      console.error(`Vidu API task creation failed with status ${response.status}:`, errorBody);
+      
+      // Try to parse JSON error if possible
+      try {
+        const errorJson = JSON.parse(errorBody);
+        console.error('Error details:', errorJson);
+      } catch (e) {
+        // Not JSON, continue with text error
+      }
+    } catch (e: any) {
+      console.error(`Failed to read error response body: ${e.message || e}`);
+    }
+    
+    // Log all request details for debugging
+    console.error('Full request details:');
+    console.error(`URL: ${response.url}`);
+    console.error(`Method: ${response.type}`);
+    console.error(`Status: ${response.status} ${response.statusText}`);
+    console.error(`Headers:`, [...response.headers.entries()]);
+    
+    // Specific error handling for common status codes
+    if (response.status === 401) {
+      console.error("Authentication failed: API key may be invalid or expired");
+    } else if (response.status === 403) {
+      console.error("Authorization failed: API key does not have permission for this request or API endpoint is restricted");
+      console.error("Check if your account has access to this API or if the API key has the correct permissions");
+    } else if (response.status === 429) {
+      console.error("Rate limit exceeded: Too many requests");
+    }
+    
+    // Include more details in the error to help with debugging
     throw new Error(`Vidu API error (${response.status}): ${errorBody || response.statusText}`);
   }
 

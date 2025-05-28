@@ -42,6 +42,7 @@ yarn-error.*
 test_video_api.py
 
 .env
+.env.backup
 
 .DS_Store
 

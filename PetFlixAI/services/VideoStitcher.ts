@@ -1,11 +1,11 @@
 import * as FileSystem from 'expo-file-system';
+import { SHOTSTACK_API_KEY, EXPO_PUBLIC_SHOTSTACK_API_URL } from '@env';
 // Environment variables are loaded automatically by Expo
 // Make sure SHOTSTACK_API_KEY and EXPO_PUBLIC_SHOTSTACK_API_URL are in your .env file
 // Defaulting URL to stage environment
 // API key is sensitive, so no EXPO_PUBLIC_ prefix (will need secure storage in a production app)
-const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY; 
 // API URL is non-sensitive, so use EXPO_PUBLIC_ prefix
-const SHOTSTACK_API_URL = process.env.EXPO_PUBLIC_SHOTSTACK_API_URL || 'https://api.shotstack.io/stage/render';
+const SHOTSTACK_API_URL = EXPO_PUBLIC_SHOTSTACK_API_URL || 'https://api.shotstack.io/stage/render';
 
 // Define and export input type for stitcher
 export interface ClipInput {
@@ -335,8 +335,8 @@ export async function stitchVideosWithShotstack(
     outputResolution: VideoResolution = 'hd'
 ): Promise<string> {
     // Get API key and URL from environment
-    const apiKey = process.env.SHOTSTACK_API_KEY;
-    const apiUrl = process.env.EXPO_PUBLIC_SHOTSTACK_API_URL || 'https://api.shotstack.io/stage/render';
+    const apiKey = SHOTSTACK_API_KEY;
+    const apiUrl = EXPO_PUBLIC_SHOTSTACK_API_URL || 'https://api.shotstack.io/stage/render';
     
     // Create provider and stitcher
     const provider = new ShotstackProvider(apiKey, apiUrl);

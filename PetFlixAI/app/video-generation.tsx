@@ -30,7 +30,8 @@ const FUN_FACTS = [
   "Warming up the AI director's chair...",
 ];
 
-export default function VideoGenerationScreen() {
+// Define VideoGenerationScreen component separately
+function VideoGenerationScreen() {
   const router = useRouter();
   const { selectedImageUri, selectedTheme } = useAppContext();
   // Use GenerationProgress type for state
@@ -165,6 +166,9 @@ export default function VideoGenerationScreen() {
     </GradientBackground>
   );
 }
+
+// Export VideoGenerationScreen as default
+export default VideoGenerationScreen;
 
 const styles = StyleSheet.create({
   safeArea: {
