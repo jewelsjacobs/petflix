@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { SHOTSTACK_API_KEY, EXPO_PUBLIC_SHOTSTACK_API_URL } from '@env';
+import { ClipInput } from './VideoTypes';
 // Environment variables are loaded automatically by Expo
 // Make sure SHOTSTACK_API_KEY and EXPO_PUBLIC_SHOTSTACK_API_URL are in your .env file
 // Defaulting URL to stage environment
@@ -7,14 +8,8 @@ import { SHOTSTACK_API_KEY, EXPO_PUBLIC_SHOTSTACK_API_URL } from '@env';
 // API URL is non-sensitive, so use EXPO_PUBLIC_ prefix
 const SHOTSTACK_API_URL = EXPO_PUBLIC_SHOTSTACK_API_URL || 'https://api.shotstack.io/stage/render';
 
-// Define and export input type for stitcher
-export interface ClipInput {
-    uri: string;
-    duration: number; // Duration in seconds
-}
-
 // Define supported output resolutions as a type
-export type VideoResolution = 'sd' | 'hd' | '1080';
+export type VideoResolution = 'sd' | 'hd' | '1080' | 'mobile';
 
 // Define interfaces for Shotstack API interaction
 interface ShotstackClip {
@@ -281,7 +276,7 @@ export class ShotstackProvider implements VideoStitchingProvider {
     /**
      * Stitches multiple video clips together using the Shotstack API
      */
-    async stitchVideos(clips: ClipInput[], resolution: VideoResolution = 'hd'): Promise<string> {
+    async stitchVideos(clips: ClipInput[], resolution: VideoResolution = 'mobile'): Promise<string> {
         try {
             console.log("Starting Shotstack video stitching process...");
             console.log("Input video data:", JSON.stringify(clips, null, 2));

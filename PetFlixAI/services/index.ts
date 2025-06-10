@@ -5,5 +5,5 @@ export * from './NetworkService';
 export * from './CacheService';
 export * from './ViduApiService';
 export * from './ProgressService';
-export * from './SingleVideoGenerator';
-export * from './NarrativeVideoGenerator'; 
+export * from './NarrativeVideoGenerator';
+export * from './VideoStitcher'; 

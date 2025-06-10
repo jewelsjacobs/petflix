@@ -1,34 +1,5 @@
 import { GenerationProgress } from './VideoTypes';
 
-export class SingleProgressTracker {
-  private currentProgress: GenerationProgress;
-  private onProgressCallback: (progress: number) => void;
-
-  constructor(onProgress: (progress: number) => void = () => {}) {
-    this.currentProgress = {
-      stage: 'initializing',
-      overallProgress: 0
-    };
-    this.onProgressCallback = onProgress;
-  }
-
-  update(stage: GenerationProgress['stage'], progressOverride?: number, message?: string): void {
-    this.currentProgress = {
-      stage,
-      overallProgress: progressOverride !== undefined ? progressOverride : this.currentProgress.overallProgress,
-      message: message || this.currentProgress.message
-    };
-
-    if (progressOverride !== undefined) {
-      this.onProgressCallback(progressOverride);
-    }
-  }
-
-  getCurrentProgress(): GenerationProgress {
-    return { ...this.currentProgress };
-  }
-}
-
 export class NarrativeProgressTracker {
   private currentProgress: number = 0;
   private onProgressCallback: (progress: GenerationProgress) => void;

@@ -20,21 +20,73 @@ import {
 } from './NetworkService';
 
 import { ERROR_MESSAGES } from '../constants/errorMessages';
+import { convertImageToBase64, isLocalFileUri } from '../utils/imageUtils';
+import { getReferenceImageById, resolveAssetPath } from '../constants/referenceImages';
 
-export const createApiTask = async (prompt: string, petImageReferenceUrl: string): Promise<string> => {
+/**
+ * Creates a Vidu API task with a user image and optional reference images
+ * @param prompt - The prompt for video generation
+ * @param userImageUrl - The user's image URL (required)
+ * @param referenceImageIds - Optional array of reference image IDs to include
+ * @returns Task ID for polling status
+ */
+export const createApiTask = async (
+  prompt: string, 
+  userImageUrl: string,
+  referenceImageIds?: string[]
+): Promise<string> => {
   checkApiConfiguration();
 
-  // Make sure we have a valid URL for the image
-  if (!petImageReferenceUrl) {
-    throw new Error('Image reference URL is required');
+  // Validate user image
+  if (!userImageUrl) {
+    throw new Error('User image URL is required');
   }
 
-  // Log the image URL for debugging
-  console.log(`Using pet image URL: ${petImageReferenceUrl}`);
+  console.log(`Processing user image: ${userImageUrl}`);
+  const imageDataArray: string[] = [];
+  
+  // Process user image first
+  let userImageData = userImageUrl;
+  if (isLocalFileUri(userImageUrl)) {
+    console.log('Converting user image to base64...');
+    try {
+      userImageData = await convertImageToBase64(userImageUrl);
+      console.log('User image converted to base64 successfully');
+    } catch (error) {
+      console.error('Failed to convert user image to base64:', error);
+      throw new Error(`Failed to prepare user image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  imageDataArray.push(userImageData);
+  
+  // Process reference images if provided
+  if (referenceImageIds && referenceImageIds.length > 0) {
+    console.log(`Processing ${referenceImageIds.length} reference images...`);
+    
+    for (const imageId of referenceImageIds) {
+      const refImage = getReferenceImageById(imageId);
+      if (!refImage) {
+        console.warn(`Reference image with ID "${imageId}" not found, skipping...`);
+        continue;
+      }
+      
+      console.log(`Processing reference image: ${refImage.name}`);
+      try {
+        const localUri = await resolveAssetPath(refImage.path);
+        const imageData = await convertImageToBase64(localUri);
+        imageDataArray.push(imageData);
+      } catch (error) {
+        console.error(`Failed to process reference image ${refImage.id}:`, error);
+        throw new Error(`Failed to prepare reference image "${refImage.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+  }
+  
+  console.log(`Total images to send: ${imageDataArray.length} (1 user + ${imageDataArray.length - 1} reference)`);
   
   const body = JSON.stringify({
     model: VIDU_API_MODEL,
-    images: [petImageReferenceUrl],
+    images: imageDataArray,
     prompt: prompt,
     duration: VIDU_DEFAULT_DURATION,
     aspect_ratio: VIDU_DEFAULT_ASPECT_RATIO,

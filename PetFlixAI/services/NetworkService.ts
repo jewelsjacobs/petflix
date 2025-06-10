@@ -27,15 +27,12 @@ export const VIDU_BASE_URL = EXPO_PUBLIC_VIDU_BASE_URL || "https://api.vidu.com/
 export const VIDU_CREATE_TASK_ENDPOINT = '/reference2video';
 export const VIDU_QUERY_STATUS_ENDPOINT = '/tasks';
 export const VIDU_API_MODEL = 'vidu2.0';
-export const VIDU_DEFAULT_RESOLUTION = EXPO_PUBLIC_VIDEO_DEFAULT_RESOLUTION || 'hd';
+export const VIDU_DEFAULT_RESOLUTION = EXPO_PUBLIC_VIDEO_DEFAULT_RESOLUTION || '720p';
 export const VIDU_DEFAULT_ASPECT_RATIO = EXPO_PUBLIC_VIDEO_DEFAULT_ASPECT_RATIO || '16:9';
 export const VIDU_DEFAULT_DURATION = Number(EXPO_PUBLIC_VIDEO_DEFAULT_DURATION || 4);
 
 export const POLLING_INTERVAL_MS = Number(EXPO_PUBLIC_POLLING_INTERVAL_MS || 10000);
 export const MAX_POLLING_TIME_MS = Number(EXPO_PUBLIC_MAX_POLLING_TIME_MS || 5 * 60 * 1000);
-
-// Export VIDU_API_KEY for use in this module
-export { VIDU_API_KEY };
 
 // Check API config during startup
 export const checkApiConfigStartup = (): void => {

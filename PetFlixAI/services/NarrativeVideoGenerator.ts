@@ -1,10 +1,16 @@
 import { ClipInput, NarrativeGenerationOptions, NarrativeGenerationResult } from './VideoTypes';
 import { NarrativeProgressTracker } from './ProgressService';
 import { checkNetworkConnectivity, checkApiConfiguration } from './NetworkService';
-import { getNarrativePrompts } from './ThemeService';
+import { getNarrativeClips, API_CALL_DELAY_MS, addPromptVariation } from './ThemeService';
 import { createApiTask, pollApiTaskStatus } from './ViduApiService';
 import { stitchVideosWithShotstack } from './VideoStitcher';
 import { ERROR_MESSAGES } from '../constants/errorMessages';
+
+/**
+ * Adds a delay between API calls to avoid rate limiting and policy violations
+ * @param ms Milliseconds to delay
+ */
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Generates a narrative video by creating 5 sequential clips based on a theme,
@@ -23,16 +29,16 @@ export const generateNarrativeVideo = async ({
   
   let currentTotalClips = 0;
   try {
-    // Get the narrative prompts for this theme
-    const narrativePrompts = getNarrativePrompts(themeId);
-    currentTotalClips = narrativePrompts.length;
+    // Get the narrative clips for this theme
+    const narrativeClips = getNarrativeClips(themeId);
+    currentTotalClips = narrativeClips.length;
     
     if (currentTotalClips === 0) {
-      throw new Error("No narrative prompts found for the selected theme.");
+      throw new Error("No narrative clips found for the selected theme.");
     }
     
     if (currentTotalClips !== 5) {
-      console.warn(`Expected 5 narrative prompts for theme '${themeId}', but found ${currentTotalClips}.`);
+      console.warn(`Expected 5 narrative clips for theme '${themeId}', but found ${currentTotalClips}.`);
     }
 
     // Initialize progress and check requirements
@@ -47,14 +53,34 @@ export const generateNarrativeVideo = async ({
     // Start the generation process
     progressTracker.update('generating', 0, currentTotalClips, `Starting generation of ${currentTotalClips} clip story...`, 0);
 
-    // Loop through each prompt to generate a clip
+    // Loop through each clip to generate it
     for (let i = 0; i < currentTotalClips; i++) {
       const currentClipNumber = i + 1;
-      const prompt = narrativePrompts[i];
+      const currentClip = narrativeClips[i];
+      const basePrompt = currentClip.prompt;
+      
+      // Add variation to avoid policy violations
+      const prompt = addPromptVariation(basePrompt, currentClipNumber);
+      
+      // Add delay between API calls (except for the first one)
+      if (i > 0) {
+        console.log(`Waiting ${API_CALL_DELAY_MS / 1000} seconds before next API call...`);
+        progressTracker.update(
+          'generating', 
+          currentClipNumber - 1, 
+          currentTotalClips, 
+          `Preparing next clip (avoiding rate limits)...`, 
+          1.0
+        );
+        await delay(API_CALL_DELAY_MS);
+      }
       
       // Log the generation process
       console.log(`Generating clip ${currentClipNumber}/${currentTotalClips}`);
       console.log(`Prompt: "${prompt}"`);
+      if (currentClip.referenceImageIds && currentClip.referenceImageIds.length > 0) {
+        console.log(`Reference images: ${currentClip.referenceImageIds.join(', ')}`);
+      }
       
       // Update progress with clip preparation
       progressTracker.update(
@@ -65,8 +91,8 @@ export const generateNarrativeVideo = async ({
         0.1
       );
 
-      // Create the generation task
-      const taskId = await createApiTask(prompt, imageUri);
+      // Create the generation task with reference images for this specific clip
+      const taskId = await createApiTask(prompt, imageUri, currentClip.referenceImageIds);
       progressTracker.update(
         'generating', 
         currentClipNumber, 

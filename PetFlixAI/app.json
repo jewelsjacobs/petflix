@@ -42,7 +42,8 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-video"
+      "expo-video",
+      "expo-asset"
     ],
     "extra": {
       "router": {

@@ -24,24 +24,6 @@ export interface NarrativeGenerationResult {
   error?: string;
 }
 
-export interface GenerationOptions {
-  imageUri: string;
-  themeId: string;
-  onProgress?: (progress: number) => void;
-}
-
-export interface GenerationResult {
-  success: boolean;
-  videoUrl?: string;
-  error?: string;
-}
-
-export interface ThemeDetails {
-  prompt: string;
-  style?: string;
-  aspect_ratio?: string;
-}
-
 // Vidu API response interfaces
 export interface CreateTaskResponse {
   task_id: string;
