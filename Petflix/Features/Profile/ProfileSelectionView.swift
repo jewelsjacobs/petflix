@@ -51,6 +51,15 @@ private let heroPosters: [HeroPoster] = [
         tracking1: 4, tracking2: 0
     ),
     HeroPoster(
+        image: "PosterTopPupChef",
+        titleLine1: "THE", titleLine2: "THRONE",
+        line1Font: .custom("Cinzel-Bold", size: 30),
+        line1Color: Color(red: 0.85, green: 0.75, blue: 0.5),
+        line2Font: .custom("Cinzel-Bold", size: 44),
+        line2Color: .white,
+        tracking1: 4, tracking2: 6
+    ),
+    HeroPoster(
         image: "Poster9To5Tails",
         titleLine1: "INTO THE", titleLine2: "UNKNOWN",
         line1Font: .custom("Orbitron-Bold", size: 28),

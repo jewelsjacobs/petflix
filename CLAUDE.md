@@ -97,6 +97,18 @@ Poster assets use legacy names that DON'T match series names:
 | Ember Reign | Poster9To5Tails | Armored dog, dark fantasy |
 | Night Watch | PosterTopPupChef | Black cat, noir city |
 
+## Workflow: Plan Then Execute
+
+For any task that touches more than 2 files:
+1. Read all relevant docs (CLAUDE.md, PRODUCT_SPEC.md, STRATEGY_REVIEW.md)
+2. Present a PLAN: list every file to modify, create, or delete, with reasoning
+3. Wait for user approval
+4. Execute the plan
+5. Clean up old/orphaned files
+6. Verify the build compiles (run xcodebuild if possible)
+
+Never start coding a multi-file change without presenting the plan first.
+
 ## Working With the User
 
 - The user is a solopreneur. Respect their time and autonomy.

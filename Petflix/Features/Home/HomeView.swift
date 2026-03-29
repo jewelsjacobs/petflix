@@ -41,7 +41,7 @@ let genreTemplates: [GenreTemplate] = [
         name: "The Throne",
         tagline: "Power. Alliances. Royal betrayal.",
         description: "Your pet navigates a world of royal power, shifting alliances, and palace intrigue. Every court has its secrets.",
-        imageName: "PosterCaptainWhiskers",
+        imageName: "PosterTopPupChef",
         titleFont: .custom("Cinzel-Bold", size: 22),
         titleColor: Color(red: 0.85, green: 0.75, blue: 0.5)
     ),
