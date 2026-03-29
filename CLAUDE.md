@@ -69,7 +69,7 @@ Before presenting any UI change, verify:
 - **Language**: Swift 6.0 / SwiftUI
 - **Architecture**: MVVM with @Observable
 - **Custom fonts**: BebasNeue-Regular, Cinzel-Bold, BlackOpsOne-Regular,
-  PlayfairDisplay-BoldItalic, Orbitron-Bold, PressStart2P-Regular
+  PlayfairDisplay-BoldItalic, Orbitron-Bold
   (all registered in Info.plist)
 - **Accent color**: Hot pink #FF0080
 - **Background**: Near-black #141414
@@ -87,15 +87,42 @@ Before presenting any UI change, verify:
 
 ## Asset Naming
 
-Poster assets use legacy names that DON'T match series names:
-| Series | Asset Name | Image Content |
-|--------|-----------|---------------|
-| The Crimson Court | PosterCaptainWhiskers | Regal cat, palace, crown |
-| Stray | PosterSuperPaws | Gritty dog, rainy neon city |
-| Starfall | PosterCosmicPaws | Cat in space helmet, nebula |
-| Golden Hour | PosterPawsAndPrejudice | Two pets, golden meadow |
-| Ember Reign | Poster9To5Tails | Armored dog, dark fantasy |
-| Night Watch | PosterTopPupChef | Black cat, noir city |
+Poster assets use legacy names that DON'T match genre names:
+| Genre | Asset Name | Image Content |
+|-------|-----------|---------------|
+| Rise to Power | PosterSuperPaws | Heroic dog, dramatic lighting, city |
+| Betrayed | PosterCaptainWhiskers | Intense cat face, dramatic shadows |
+| Forbidden | PosterPawsAndPrejudice | Two pets, golden warm light |
+| The Throne | PosterTopPupChef | Black cat, noir city (temporary) |
+| Unleashed | PosterCosmicPaws | Cat with glowing elements, energy |
+| Into the Unknown | Poster9To5Tails | Armored dog, dark fantasy (temporary) |
+
+Note: The Throne and Into the Unknown use images that don't perfectly match
+their genres. This is acceptable for v1 per PRODUCT_SPEC.md. Regenerate when ready.
+
+## Writing Genre Descriptions and UI Copy
+
+The user is NOT a screenwriter. They are a pet owner who wants to see their
+pet in a fun drama. All copy should be written for THEM, not for a film student.
+
+- NEVER use terms like: arc, trope, narrative, protagonist, montage, beat,
+  hook, cliffhanger structure, plot device, character development, act structure
+- INSTEAD write like a hype friend: "Your cat just inherited a kingdom.
+  Too bad everyone wants them gone." 
+- Descriptions should make the user FEEL the drama, not analyze it
+- Study how ReelShort, DramaBox, and Douyin pet dramas describe their content:
+  short, punchy, emotional, zero jargon
+- Taglines should be 6-10 words max. Visceral, not clever.
+- Descriptions should be 1-2 sentences. Make the user want to tap "Create."
+
+Examples of BAD copy:
+  "Transformation arcs, humble origins, montage moments, and a triumphant rise."
+  "A revenge arc that keeps you hooked."
+
+Examples of GOOD copy:
+  "They took everything. Now your pet takes it all back."
+  "One chance. One crown. Everyone else is in the way."
+  "Your pet just fell for the one they can't have."
 
 ## Workflow: Plan Then Execute
 

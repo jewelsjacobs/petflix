@@ -8,13 +8,6 @@ enum PetflixTheme {
     static let accentDark = Color(red: 0.7, green: 0.0, blue: 0.35)
     static let accentDeep = Color(red: 0.45, green: 0.0, blue: 0.22)
     static let textSecondary = Color(white: 0.55)
-    static let pillBackground = Color(white: 0.2)
-
-    static let accentGradient = LinearGradient(
-        colors: [accent, Color(red: 1.0, green: 0.2, blue: 0.6)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
 }
 
 // MARK: - Petflix "P" Logo — Bebas Neue, hot pink

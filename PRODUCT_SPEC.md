@@ -51,55 +51,51 @@ Genre names describe the VIBE, not a specific show. They are short,
 evocative, and work as a category label the user taps to create content.
 
 ### 1. RISE TO POWER
-- **Trope:** Rags-to-riches / Power fantasy
-- **The pitch:** Your pet goes from nobody to ruler of everything.
-- **Why it works:** #1 microdrama genre globally. Transformation arcs are
-  universally satisfying. Works for any animal — a stray cat becoming
-  a corporate CEO, a goldfish inheriting an empire.
-- **Episode beats:** Humble origins, first break, montage, rivals, setbacks, triumph
+- **Genre:** Rags-to-riches / Power fantasy
+- **Tagline:** "From nothing to everything."
+- **Description:** Your pet starts at the bottom. No name, no status, no respect.
+  But that's about to change — and not everyone's going to like it.
+- **Why it works:** #1 microdrama genre globally. Works for any animal.
 - **Mood image:** Dramatic upward-looking hero shot, luxury backdrop
 
 ### 2. BETRAYED
-- **Trope:** Revenge / Betrayal drama
-- **The pitch:** Your pet discovers they've been deceived. Now they want justice.
+- **Genre:** Revenge / Betrayal drama
+- **Tagline:** "They took everything. Now it's personal."
+- **Description:** Your pet trusted the wrong one. Now they know the truth —
+  and they're not going to let it go.
 - **Why it works:** Revenge is the #2 engagement driver in microdramas.
-  Satisfying payback arcs keep viewers coming back.
-- **Episode beats:** Discovery, shock, planning, confrontation, twist, payback
 - **Mood image:** Intense close-up, dramatic shadows, rain
 
 ### 3. FORBIDDEN
-- **Trope:** Forbidden romance
-- **The pitch:** Your pet falls for someone they shouldn't. Against all odds.
-- **Why it works:** Romance dominates ReelShort/DramaBox. Forbidden love
-  adds tension that straight romance lacks.
-- **Episode beats:** Chance meeting, stolen moments, discovery, separation, reunion
+- **Genre:** Forbidden romance
+- **Tagline:** "The one they can't have."
+- **Description:** Your pet just met someone who changes everything. But the
+  world doesn't want them together. Some things are worth the risk.
+- **Why it works:** Romance dominates ReelShort/DramaBox globally.
 - **Mood image:** Two animals in warm golden light, tender moment
 
 ### 4. THE THRONE
-- **Trope:** Palace intrigue / Historical drama
-- **The pitch:** Your pet navigates a world of royal power, alliances, and betrayal.
-- **Why it works:** Proven in Chinese pet microdramas — "His Highness Bichon
-  Rules The Empire" was a massive hit. The absurdity of animals in royal
-  courts is inherently compelling.
-- **Episode beats:** Court politics, alliances, betrayal, power shifts, coronation
+- **Genre:** Palace intrigue / Historical drama
+- **Tagline:** "One crown. Everyone wants it."
+- **Description:** Your pet just entered a world of royals, rivals, and
+  dangerous secrets. Trust no one. Bow to no one.
+- **Why it works:** Proven hit in Chinese pet microdramas.
 - **Mood image:** Regal animal with crown, palace interior, rich warm tones
 
 ### 5. UNLEASHED
-- **Trope:** Supernatural / Powers
-- **The pitch:** Your pet discovers they have abilities no one has ever seen.
-- **Why it works:** Supernatural romance and power fantasy are top ReelShort
-  genres. "Nine-Tailed Fox Demon Falls for Me" got 170M views.
-  Powers can be adapted to any animal type.
-- **Episode beats:** Discovery, transformation, hunted, allies, showdown
+- **Genre:** Supernatural / Powers
+- **Tagline:** "Something inside them just woke up."
+- **Description:** Your pet was ordinary — until now. New powers. New enemies.
+  And no idea how deep this goes.
+- **Why it works:** Supernatural is a top ReelShort genre. 170M+ views on similar content.
 - **Mood image:** Animal with glowing eyes, energy effects, dramatic lighting
 
 ### 6. INTO THE UNKNOWN
-- **Trope:** Sci-fi / Fantasy adventure
-- **The pitch:** Strange new worlds. Ancient mysteries. Your pet leads the way.
-- **Why it works:** Fantasy/sci-fi is the fastest-growing microdrama genre.
-  AI excels at generating fantasy/sci-fi visuals. Any animal in a space
-  helmet or wizard robe is inherently delightful.
-- **Episode beats:** Call to adventure, new world, danger, discovery, revelation
+- **Genre:** Sci-fi / Fantasy adventure
+- **Tagline:** "What's out there is waiting."
+- **Description:** A strange new world. An ancient mystery. Your pet is the
+  only one brave enough to find out what happens next.
+- **Why it works:** Fastest-growing microdrama genre. AI excels at fantasy/sci-fi visuals.
 - **Mood image:** Animal in fantastical setting, cosmic or magical atmosphere
 
 ### Future Genres (add based on user demand, not at launch)
