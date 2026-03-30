@@ -133,6 +133,43 @@ Always use "pet" or "your pet." This makes species expansion seamless.
 
 Pet profile stores: name, photo, type (dog/cat for v1)
 
+### Pet Photo Requirements
+The compositing pipeline needs a CLEAR, FULL-BODY photo of the pet for
+best results. The profile creation flow should guide users toward this.
+
+**Ideal photo characteristics:**
+- Pet's full body is visible (not just head/face)
+- Pet is the main subject (not cropped behind furniture, not held by person)
+- Minimal background clutter
+- Good lighting (not backlit, not too dark)
+- At least 500x500px resolution
+
+**Profile creation UX guidance:**
+- Show brief guidance: "Use a photo that shows your pet's whole body"
+- After photo selection, run animal detection to confirm a pet is found
+- Show the extracted cutout and ask user to confirm it looks correct
+- If no animal detected, prompt the user to try a different photo
+- **Image cropping:** The profile creator MUST allow users to crop the
+  selected image. The full-resolution photo is kept for compositing,
+  but the user can crop a portion for their circular profile avatar.
+  This means we store TWO versions: the original (for compositing)
+  and the cropped version (for the profile icon).
+
+**Partial photo warning:**
+If the user uploads a close-up or partial body photo, the app should:
+- Accept the photo (don't block them)
+- Show a gentle notice: "For best results, use a full-body photo.
+  With a close-up, your pet may look a little different in some scenes."
+- Internally tag the profile as "partial" so the pipeline knows to
+  select portrait-framing templates rather than full-body scenes
+
+**What if the user only has close-up/portrait photos?**
+- Accept them — some templates work fine with head/upper body
+- Design a subset of templates as "portrait" framing (dramatic close-up
+  scenes) that work well with face-only pet photos
+- Do NOT block the user from proceeding — just note internally which
+  photo type they have and match templates accordingly
+
 ## Episode Architecture
 
 Episodes are NOT generated from scratch per-user. The architecture has

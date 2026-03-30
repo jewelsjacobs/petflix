@@ -131,7 +131,19 @@ are NO LONGER NEEDED. There is no server-side video generation.
 
 ---
 
-### Pet Identity Transfer Options (TBD — requires quality testing)
+### Pet Identity Transfer Options
+
+**See PET_TRANSFER_TEST_PLAN.md for the detailed test plan and
+Claude Code/Xcode Agent prompts for executing each phase.**
+
+The PRIMARY approach being tested is an on-device compositing pipeline
+using Apple Vision (VNGenerateForegroundInstanceMaskRequest for subject
+lifting, VNRecognizeAnimalsRequest for detection) + Core Image
+(CIBlendWithMask for compositing). This is NOT an AI face swap — it's
+a cut-and-composite pipeline. Cost: $0. Speed: <2 seconds on-device.
+
+Cloud fallback (FLUX Kontext via fal.ai) is tested only if on-device
+quality scores below 3.0/5.0 average across the evaluation rubric.
 
 | Method | Where | Cost/image | Speed | Quality (animals) |
 |--------|-------|-----------|-------|--------------------|
@@ -228,11 +240,14 @@ and logged in a changelog independently.
 
 ### Stage 5: Pet Identity Transfer
 **Feature:** PETTRANSFER-001 — Pet identity into template images
-- Test FLUX Kontext via fal.ai with real pet photos
-- Test on-device alternatives (Core ML IP-Adapter)
-- Implement the winning method in the iOS app
-- Add cloud fallback via Edge Function if needed
-- **Test:** Pet is recognizable in output images
+**Detailed plan:** PET_TRANSFER_TEST_PLAN.md
+- Phase 1: Validate Vision subject lifting + animal detection (macOS CLI)
+- Phase 2: Build full compositing pipeline in Xcode test view
+- Phase 3: Generate background-only templates for Approach B
+- Phase 4: Evaluate quality scores, decide on-device vs cloud fallback
+- Primary method: Vision + Core Image on-device compositing ($0/image)
+- Fallback: FLUX Kontext Pro via fal.ai ($0.04/image)
+- **Test:** Pet is recognizable in output images, avg quality ≥ 3.0/5.0
 - **Changelog:** "Add pet identity transfer pipeline"
 
 ### Stage 6: On-Device Video Assembly
