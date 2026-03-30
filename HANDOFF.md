@@ -1,192 +1,306 @@
-# Petflix Project Handoff — Updated March 29, 2026 (evening)
+# Petflix Project Handoff — Updated March 30, 2026
 
 ## What Is Petflix?
 
-Petflix is an iOS app for **creating AI-generated microdrama episodes starring your pet**. Users upload a photo of their pet, pick a dramatic genre/trope, and the app generates short cinematic episodes (60-90 seconds) with their pet as the star.
+Petflix is an iOS app for **creating AI-generated microdrama episodes starring
+your pet**. Users upload a photo of their pet, pick a dramatic series, and the
+app generates short cinematic episodes (60-90 seconds) with their pet as the star.
 
-The UI uses a Netflix-inspired dark theme with hot pink (#FF0080) accents, but the paradigm is **creation-first**, not browse-first. The home screen prompts users to create, not to browse non-existent content.
-
-The concept sits at the intersection of AI pet content (Chinese AI pet microdramas getting hundreds of millions of views in Q1 2026) and the microdrama market ($14B projected for 2026).
-
----
-
-## Project Location & Setup
-
-- **Project folder:** `~/projects/petflix`
-- **Xcode project:** `Petflix.xcodeproj` — open in Xcode, select iPhone simulator, Cmd+R to run
-- **GitHub repo:** `jewelsjacobs/petflix`
-- **Language/Framework:** Swift 6.0 / SwiftUI / iOS 17+
-- **Architecture:** MVVM with `@Observable` macro
-
-### Key Configuration Files
-- `CLAUDE.md` — Project rules and architecture for AI agents
-- `PRODUCT_SPEC.md` — Product decisions, genre definitions, screen specs (source of truth)
-- `STRATEGY_REVIEW.md` — Strategic analysis that led to the creation-first pivot
-- `Info.plist` — Registers 6 custom fonts
+The UI uses a Netflix-inspired dark theme with hot pink (#FF0080) accents.
+The paradigm is **creation-first**, not browse-first.
 
 ---
 
-## Current App State
+## Critical Documents (Read These First)
+
+| Document | Purpose | Status |
+|----------|---------|--------|
+| `CLAUDE.md` | Rules for any AI agent working on this project | **Updated March 30** |
+| `PRODUCT_SPEC.md` | Product decisions, series definitions, screen specs | **Updated March 30** — pet photo requirements added |
+| `BACKEND_SPEC.md` | Backend architecture, database schema, stages | **Updated March 30** — Stage 5 references test plan |
+| `PET_TRANSFER_TEST_PLAN.md` | Detailed plan for pet identity transfer testing | **Updated March 30** — Personalization limitation noted |
+| `MICRODRAMA_E2E_TEST.md` | End-to-end episode generation test | **NEW — March 30** — master test plan |
+| `PET_DESCRIPTION_RESEARCH.md` | Research on auto pet description from photos | **NEW — March 30** — Foundation Models is primary approach |
+| `FEASIBILITY_CHECK.md` | Cost/speed analysis of video generation approaches | Current |
+| `STRATEGY_REVIEW.md` | Market research and strategy | Current |
+
+---
+
+## Where We Left Off (March 30, 2026)
+
+### ACTIVE WORK: Pet Identity Transfer Pipeline Testing
+
+Phases 1 through 2D plus Foundation Models testing are **ALL COMPLETED**.
+Key finding: Foundation Models generates breed-specific pet descriptions
+from photos that score **5/5 Recognition** when used in ImageCreator prompts.
+The production pipeline is decided. Next: Phase 3 (full 8-scene episode).
+
+**What happened today:**
+
+1. **Created PET_TRANSFER_TEST_PLAN.md** (880+ lines) — comprehensive plan for
+   testing on-device pet identity transfer using Apple native frameworks.
+
+2. **Phase 1A passed** — Subject lifting with VNGenerateForegroundInstanceMaskRequest.
+   Tested with all 3 pet photos. Results in `test-outputs/`:
+   - Wiley cutout: Clean separation from person's leg. Whiskers preserved.
+   - Rudy close-up cutout: Excellent segmentation, fluffy fur edges clean.
+   - Rudy full-body cutout: Vision separated Rudy from dark leather recliner
+     cleanly, even where black fur meets dark leather.
+   - All 3 completed in under 0.5 seconds each.
+
+3. **Phase 1B passed** — Template animal detection with VNRecognizeAnimalsRequest.
+   - The Throne: Cat detected at 67.3% confidence, 95% width coverage
+   - Rise to Power: Dog detected at 77.0% confidence, 72% width coverage
+   - Total pipeline time: 1.49 seconds
+
+4. **Discovered Apple Image Playground / ImageCreator API** — on-device
+   text-to-image generation that accepts `.text()` and `.image()` concepts.
+
+5. **Phase 1C: ImageCreator test completed** — 6 images generated, in
+   `test-outputs/ic-*` files. Animation and illustration styles both tested.
+
+6. **CRITICAL FINDING: Personalization API is PEOPLE-ONLY** — Confirmed via
+   Gemini research + Apple SDK docs. `ImagePlaygroundOptions.Personalization`
+   does NOT work for pets. It only enables a people picker and name detection
+   for human faces. For pets, we use text-only prompts with Foundation Models-
+   generated descriptions. All project docs updated to reflect this.
+
+7. **Created MICRODRAMA_E2E_TEST.md** — End-to-end test plan for scene
+   generation, video assembly, narration, and pet identity approaches.
+
+8. **Foundation Models test: PERFECT SCORES** — Foundation Models framework
+   generates breed-specific descriptions from pet photos on-device.
+   Both Wiley and Rudy scored 5/5 Recognition. This is the production pipeline.
+
+### Next Steps (in priority order)
+
+1. **Phase 3: Generate full 8-scene episode** — Use the Foundation Models
+   pipeline to generate all 8 scenes for "The Throne: The Arrival" episode
+   with Wiley. See MICRODRAMA_E2E_TEST.md.
+
+2. **Phase 4: Build AVFoundation video assembly pipeline** — Turn the 8
+   scene images into a playable MP4 with Ken Burns, transitions, TTS.
+
+3. **Phase 5: TTS narration** — Generate voiceover via AVSpeechSynthesizer.
+
+4. **Phase 6: End-to-end test** — Full pipeline: pet photo → Foundation
+   Models description → 8 scene images → assembled video → playback.
+
+---
+
+## Architecture Decision: Pet Description Pipeline (DECIDED)
+
+Testing completed. Text-only prompts with breed-specific descriptions
+are the clear winner for pet identity in ImageCreator.
+
+### Test Results Summary
+| Approach | Recognition | Overall | Status |
+|----------|------------|---------|--------|
+| A: .image() only | 0-2/5 | 3.1/5 | REJECTED — pet unrecognizable |
+| B: Text-only (manual desc) | 4/5 | 4.7/5 | Good but manual |
+| C: Hybrid (text + image) | 3/5 | 4.6/5 | Worse than text-only |
+| **Foundation Models** | **5/5** | **5.0/5** | **PRODUCTION PIPELINE** |
+
+### Production Pipeline: Pet Description
+**PRIMARY (iOS 26+): Apple Foundation Models Framework**
+- On-device 3B parameter multimodal LLM
+- Pass pet photo → get structured PetDescription with breed, colors,
+  markings, coat texture, facial features in proper breed terminology
+- Single API call, $0, on-device, offline, private
+- See PET_DESCRIPTION_RESEARCH.md for implementation details
+
+**FALLBACK (iOS 17-25): Core ML breed classifier + Vision**
+- Core ML breed classifier for breed name
+- VNRecognizeAnimalsRequest for species
+- VNDetectAnimalBodyPoseRequest for pose
+
+### Prompt Rules (Learned from Testing)
+- NEVER use "tuxedo" — ImageCreator puts a literal suit on cats
+- NEVER use "split face" — confuses the model
+- USE breed-specific terminology (from Foundation Models or Gemini-style)
+- Text-only `.text()` prompts ONLY — no `.image()` concept
+- `Personalization` API is PEOPLE-ONLY, does not work for pets
+
+### Compositing Fallback (non-Apple-Intelligence devices)
+- Vision + Core Image compositing, tested and working in Phase 1
+
+---
+
+## Test Pets (ACCURATE DESCRIPTIONS — use these everywhere)
+
+- **Wiley** — Sleek black domestic shorthair cat with a white belly, white
+  chest, white paws (pink paw pads), golden-yellow eyes, pointed black ears,
+  short smooth fur. Black on top/back, white underneath. NOT a gray tabby.
+  NEVER say "tuxedo" in prompts — ImageCreator puts a literal suit on the cat.
+- **Rudy** — Small white Shih Tzu with black ears and black tail. Short hair
+  on the body with puffy hair around the face. Dark round eyes, black nose.
+  NOT a "split face" dog. NOT brown/tan. Mostly WHITE with black ears and tail.
+
+### Test Photos (in ~/projects/petflix/test-photos/)
+| File | Pet | Type | Notes |
+|------|-----|------|-------|
+| wiley-closeup.jpeg (140 KB) | Wiley | Close-up / partial body | Curled on person's lap |
+| rudy-closeup.jpeg (409 KB) | Rudy | Close-up / head+upper body | Sitting by window |
+| rudy-fullbody.png (103 KB) | Rudy | Full body | Lying on leather recliner |
+
+### Test Outputs (in ~/projects/petflix/test-outputs/)
+**Phase 1A — Subject lifting:**
+- wiley-closeup-cutout.png, wiley-closeup-mask.png
+- rudy-closeup-cutout.png, rudy-closeup-mask.png
+- rudy-fullbody-cutout.png, rudy-fullbody-mask.png
+
+**Phase 1B — Template detection:**
+- the-throne-detection.png (red bounding box overlay)
+- rise-to-power-detection.png (red bounding box overlay)
+
+**Phase 1C — ImageCreator output:**
+- ic-* files (generated by Claude Code, Julia reports they look good)
+
+---
+
+## Key Product Decisions Made Today
+
+### Pet Photo Requirements
+- Full-body photos produce best results for compositing/generation
+- Profile creation UX must guide users: "Use a photo showing your pet's whole body"
+- Must allow image CROPPING — store full photo for generation, cropped for avatar
+- If user uploads close-up only, show gentle notice and tag profile as "partial"
+- Run VNRecognizeAnimalsRequest after selection to confirm pet is detected
+- Show extracted cutout preview for user confirmation before saving
+- Added to PRODUCT_SPEC.md and CLAUDE.md
+
+### Template Strategy
+- Existing poster templates all contain animals filling most of the frame
+- For compositing approach: need background-only templates (no animals)
+- For ImageCreator approach: no templates needed at all — generate from prompt
+- ImageCreator may eliminate the need for pre-generated template images entirely
+
+### Output Style Decision
+- Animation style confirmed as the target aesthetic
+- NO ChatGPT-powered styles — everything stays on-device
+- This means: $0 cost, works offline, unlimited generations, full privacy
+- The stylized animation look IS the product identity for Petflix
+
+---
+
+## Project Structure
+
+```
+~/projects/petflix/
+├── CLAUDE.md                    — AI agent rules (UPDATED March 30)
+├── PRODUCT_SPEC.md              — Product spec (UPDATED March 30)
+├── BACKEND_SPEC.md              — Backend spec (UPDATED March 30)
+├── PET_TRANSFER_TEST_PLAN.md    — Identity transfer test plan (NEW March 30)
+├── PET_DESCRIPTION_RESEARCH.md   — Pet description pipeline research (NEW March 30)
+├── FEASIBILITY_CHECK.md         — Cost analysis
+├── STRATEGY_REVIEW.md           — Market strategy
+├── HANDOFF.md                   — This file
+├── test-photos/                 — Wiley & Rudy photos for testing
+├── test-outputs/                — Phase 1 test results (masks, cutouts, detections, IC images)
+├── test-transfer.swift          — Phase 1A/1B test script (macOS CLI)
+├── ImageCreatorTest/            — Phase 1C test app (if created by CC)
+├── Petflix/                     — Main iOS app source
+├── Petflix.xcodeproj            — Xcode project
+├── generated-posters/           — Source poster JPGs
+└── supabase/                    — Supabase config and migrations
+```
+
+## Validated: Full Microdrama Pipeline Using Apple First-Party SDKs
+
+The entire episode creation pipeline can be built with native Apple frameworks.
+No third-party dependencies required for core functionality.
+
+| Component | Framework | How |
+|-----------|-----------|-----|
+| **Pet description** | Foundation Models (iOS 26+) | On-device multimodal LLM analyzes pet photo, returns structured breed/colors/markings description. Fallback: Core ML breed classifier + Vision APIs. |
+| **Image generation** | ImagePlayground (`ImageCreator`) | Text-only prompt (pet description + scene) → Animation style image, on-device |
+| **Ken Burns effect** | AVFoundation | `AVVideoCompositionCoreAnimationTool` with Core Animation scale/translate transforms |
+| **Voiceover/TTS** | AVSpeechSynthesis | High-quality system voices. iOS 18+ supports Personal Voice. |
+| **Sound effects/music** | AVAudioPlayer / AVAudioEngine | Simple playback or complex mixing |
+| **Text overlays** | SwiftUI `Text` (preview) / AVMutableComposition (export) | Burn captions/titles into video track |
+| **Video assembly** | AVAssetWriter + AVMutableComposition | Combine images, audio, voiceover → single .mp4/.mov |
+| **Video playback** | AVPlayer | Play assembled episodes |
+
+NOTE: `ImagePlaygroundOptions.Personalization` is PEOPLE-ONLY and does NOT
+work for pets. Pet identity uses text-only `.text()` prompts with breed-specific
+descriptions generated by Foundation Models. `.image()` concept tested and
+rejected (Recognition 0-2/5). See PET_DESCRIPTION_RESEARCH.md.
+
+**Key insight:** AVMutableComposition is the "timeline" — it arranges which
+image appears when and which audio plays where. AVAssetWriter renders the
+final file. No server-side rendering needed.
+
+**What this means for Petflix:** Zero cloud dependency for episode creation.
+Every episode is generated and assembled entirely on the user's device.
+The only cloud services needed are Supabase (auth, profiles, metadata)
+and potentially content storage for sharing.
+
+
 
 ### App Flow
 ```
-Launch → SplashView (2.5s animation: "PETFLIX" zoom-in + pawprints + sparkles)
-  → ProfileSelectionView ("Who's Starring?" — pick pet profile)
-    → ContentView (TabView with 2 tabs: Home, My Petflix)
-      → Home: Creation-first genre grid → tap genre → GenreDetailView → "Create Episode"
-      → My Petflix: Empty state (episodes appear after creation)
+Launch → SplashView (2.5s) → ProfileSelectionView → ContentView (2 tabs)
+  → Home: 6 series cards → SeriesDetailView → "Create Episode" (placeholder)
+  → My Petflix: Empty state
 ```
 
-### File Structure
-```
-Petflix/
-├── PetflixApp.swift              App entry. Splash → profile → main tabs
-├── ContentView.swift             TabView (Home + My Petflix — only 2 tabs)
-├── Info.plist                    Registers 6 custom fonts
-├── BebasNeue-Regular.ttf         Logo/headers font
-├── Cinzel-Bold.ttf               Rise to Power, The Throne genre font
-├── BlackOpsOne-Regular.ttf       Betrayed, Unleashed genre font
-├── Playfair-Italic.ttf           Forbidden genre font
-├── Orbitron-Bold.ttf             Into the Unknown genre font
-│
-├── Core/
-│   ├── Models/
-│   │   ├── AppState.swift        @Observable. Tracks splash, profile, pet name
-│   │   └── PetProfile.swift      Pet profile model with defaults
-│   └── UI/
-│       └── PetflixTheme.swift    Colors, PetflixLogo "P" view, BounceButtonStyle
-│
-├── Features/
-│   ├── Splash/
-│   │   └── SplashView.swift      Animated splash with Bebas Neue "PETFLIX"
-│   ├── Profile/
-│   │   ├── ProfileSelectionView  "Who's Starring?" with pet avatars + genre hero
-│   │   └── AddPetView.swift      Add pet flow (name + photo)
-│   ├── Home/
-│   │   ├── HomeView.swift        Creation-first: hero prompt + 6 series cards + Your Episodes
-│   │   ├── SeriesDetailView.swift Series detail with Create Episode
-│   │   └── EpisodeCreationView.swift Coming soon placeholder
-│   └── MyPetflix/
-│       └── MyPetflixView.swift   Empty state — episodes appear after creation
-│
-└── Assets.xcassets/
-    ├── PetflixAppIcon.imageset/       App icon
-    ├── PosterRiseToPower.imageset/     Rise to Power mood image
-    ├── PosterBetrayed.imageset/       Betrayed mood image
-    ├── PosterForbidden.imageset/      Forbidden mood image
-    ├── PosterTheThrone.imageset/      The Throne mood image (Qwen-Image)
-    ├── PosterUnleashed.imageset/      Unleashed mood image
-    ├── PosterIntoTheUnknown.imageset/ Into the Unknown mood image (Qwen-Image)
-    ├── ProfileRudy.imageset/          Pet profile photo (Rudy)
-    └── ProfileWiley.imageset/         Pet profile photo (Wiley)
-```
-
-### 6 Genre Templates
-
-| Genre | Trope | Font | Asset | Image Fit |
-|-------|-------|------|-------|-----------|
-| Rise to Power | Rags-to-riches | Cinzel Bold | PosterRiseToPower | Good |
-| Betrayed | Revenge / Betrayal | BlackOpsOne | PosterBetrayed | Good |
-| Forbidden | Forbidden romance | Playfair Italic | PosterForbidden | Good |
-| The Throne | Palace intrigue | Cinzel Bold | PosterTheThrone | Upgraded (Qwen-Image) |
-| Unleashed | Supernatural / Powers | BlackOpsOne | PosterUnleashed | Good |
-| Into the Unknown | Sci-fi / Fantasy | Orbitron Bold | PosterIntoTheUnknown | Upgraded (Qwen-Image) |
-
----
-
-## Design Decisions
-
-### Visual Identity
-- **Background:** Near-black #141414
-- **Accent:** Hot pink #FF0080
-- **Logo/headers:** Bebas Neue
-- **Body text:** SF Pro (system)
-- **Genre titles:** Custom fonts per genre (see table above)
-- **Mood images:** Text-free. All titles rendered as SwiftUI overlays.
-
-### Product Rules (see PRODUCT_SPEC.md for full list)
-- Creation tool, not streaming service
-- Only 2 tabs: Home (create) + My Petflix (library)
-- No Coming Soon cards, Trending rows, filter pills, or fake content
-- No download icon, no search icon
-- All genres are pet-agnostic ("your pet", never "dog" or "cat")
-- No duplicate mood images across the UI
-
-### Profile Selection
-- Default pets: Wiley (ProfileWiley) and Rudy (ProfileRudy)
-- Add button opens AddPetView (name + photo from library/camera/files). Edit mode allows deleting profiles (minimum 1 must remain).
-- Hero banner randomly shows one of the 6 genres with styled title overlay
-
----
-
-## Poster Generation (for future asset work)
-
-### Best Tool: Hugging Face Qwen-Image (via MCP)
-- Dramatic close-up compositions, photorealistic
-- Access: Hugging Face MCP connector, space `mcp-tools/Qwen-Image`
-- Aspect ratio: 2:3 for portrait posters
-- Free tier: ~3 posters/day (GPU quota resets every 24h)
-- Prompt formula: extreme close-up of animal face + costume + background + lighting + film reference
-
-### Alternative: qwen-image.org (Web UI)
-- Same Qwen-Image model, separate credit system from HF MCP
-- URL: https://qwen-image.org/generate
-- Use 9:16 aspect ratio for portrait posters
-- Free account gets limited credits (5 per generation)
-
-### Alternative: Local SDXL
-- Python 3.12, PyTorch 2.6, diffusers installed on M4 Pro (24GB RAM)
-- Unlimited generations, ~30-60 sec each
-- Does NOT handle text well — use for background images only
-
-### Adding Posters to Asset Catalog
-1. Create `Petflix/Assets.xcassets/[Name].imageset/`
-2. Copy image file into that directory
-3. Create `Contents.json` with filename, idiom "universal", scale "1x"
-4. Reference in SwiftUI as `Image("Name")`
-
----
-
-## What's Built vs. What's Not
-
-### Built (v1 shell)
-- Splash animation
-- Profile selection with add/edit/delete profiles
-- Add pet profile flow (name + photo picker/camera)
+### What's Built (v1 shell)
+- Splash animation, profile selection with add/edit/delete
 - Creation-first home screen with 6 series cards
-- Series detail with "Create Episode" button
-- Episode creation placeholder (navigates to coming soon screen)
+- Series detail with "Create Episode" button (navigates to placeholder)
 - My Petflix empty state
-- 6 text-free mood images in asset catalog
-- 6 custom cinematic fonts
+- 6 text-free mood images, 6 custom cinematic fonts
 - Netflix-dark theme with hot pink accents
-- Supabase backend: project created (petflix), database schema deployed (profiles, episodes, generation_budget tables), RLS policies active
+- Supabase backend: project created, schema deployed, RLS active
 
-### Not Built Yet
-- **Pet identity transfer:** Method TBD — testing needed with FLUX
-  Kontext (cloud) and Core ML (on-device) for animal face identity
-- **Episode templates:** Pre-generated template images not yet created
-  for any series
-- **Video assembly:** AVFoundation pipeline for on-device compositing
-  (Ken Burns effects, transitions, audio mixing, text overlays)
-- **Video playback:** AVPlayer-based episode player
-- **Voiceover/TTS:** Narration audio generation (Apple TTS or ElevenLabs)
-- **Auth:** Apple Sign In + Supabase Auth not integrated in iOS app yet
-- **Profile sync:** Profiles are local-only (UserDefaults), not synced
-  to Supabase yet
+### What's Not Built Yet
+- Pet identity transfer pipeline (ACTIVELY TESTING — see above)
+- Episode template images (may not be needed if ImageCreator works)
+- AVFoundation video assembly pipeline
+- Video playback (AVPlayer)
+- Voiceover/TTS narration
+- Apple Sign In + Supabase Auth
+- Profile sync to Supabase (currently local UserDefaults only)
 
 ---
 
 ## Technical Environment
 
-- **Mac:** Apple M4 Pro, 24GB RAM, macOS with Metal 4 GPU
+- **Mac:** Apple M4 Pro, 24GB RAM, macOS with Apple Intelligence enabled
+- **Xcode:** Current, targeting iOS 17+ (ImageCreator needs iOS 18.4+)
 - **Python:** 3.12.9 (via pyenv) with PyTorch 2.6, diffusers, transformers
-- **Xcode:** 26.3
 - **Hugging Face account:** jewelsjacobs
-- **Claude subscription:** Claude Max (jdisman0@gmail.com)
+- **Claude Code:** Available, used with --dangerously-skip-permissions for testing
+- **MCP Servers:** Hugging Face, Vercel, Supabase, Desktop Commander, Filesystem,
+  Google Calendar, Gmail, n8n, Claude in Chrome
 
 ---
 
-## Connected MCP Servers (in Claude.ai)
-- Hugging Face (user: jewelsjacobs)
-- Vercel, Supabase, Google Calendar, Gmail, n8n
+## Files Modified in This Session (March 30, 2026)
+
+| File | What Changed |
+|------|-------------|
+| `PET_TRANSFER_TEST_PLAN.md` | NEW — 880+ line test plan with pipeline design, test matrix, quality rubric, Claude Code prompts, ImageCreator section |
+| `CLAUDE.md` | Added: test pets section, pet photo requirements, ImageCreator as preferred approach, updated file structure, accurate pet descriptions |
+| `PRODUCT_SPEC.md` | Added: pet photo requirements, image cropping for profile creation, partial photo warning UX |
+| `BACKEND_SPEC.md` | Updated: Stage 5 references test plan, pet identity transfer options replaced TBD with specific approaches |
+| `HANDOFF.md` | Full rewrite (this file) |
+| `test-transfer.swift` | NEW — Phase 1A/1B macOS CLI test script (created by Claude Code) |
+| `test-photos/` | NEW directory — wiley-closeup.jpeg, rudy-closeup.jpeg, rudy-fullbody.png |
+| `test-outputs/` | NEW directory — masks, cutouts, detection overlays, ImageCreator outputs |
+
+## Claude Code Prompt: Foundation Models Pet Description Test
+
+See PET_DESCRIPTION_RESEARCH.md for the full research and approach.
+
+Build a test that passes pet photos to the Apple Foundation Models
+framework (iOS 26+ / macOS 26+) and evaluates whether the LLM-generated
+descriptions produce good ImageCreator results when used in text-only prompts.
+
+Use @Generable struct for structured output: breed, coatDescription,
+coatTexture, facialFeatures, eyeColor, earType, bodySize, imagePromptDescription.
+
+Do NOT test ImagePlaygroundOptions.Personalization — it is PEOPLE-ONLY.
+Do NOT use .image() concept as primary — scored 0-2/5 on Recognition.
+Do NOT use "tuxedo" in any prompt — puts literal suit on cats.
+Do NOT use "split face" in any prompt — confuses the model.

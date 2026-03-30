@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+*.xcuserstate
+
+# Test outputs (large generated images)
+test-outputs/*.png
+
+# Xcode
+xcuserdata/
+DerivedData/
+build/
+*.xcscmblueprint

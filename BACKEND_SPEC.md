@@ -9,7 +9,12 @@ for auth, data, and content storage. There is NO server-side video rendering.
 ```
 iOS App (SwiftUI)
     ├── On-Device Processing
-    │   ├── Pet Identity Transfer (Core ML or cloud fallback)
+    │   ├── Pet Description (Foundation Models, iOS 26+)
+    │   │   ├── On-device 3B param LLM analyzes pet photo
+    │   │   ├── Returns structured breed/colors/markings/texture
+    │   │   └── Fallback: Core ML breed classifier + Vision APIs
+    │   ├── Scene Image Generation (ImageCreator API, on-device)
+    │   │   └── Text-only .text() prompts (pet desc + scene) → Animation style
     │   ├── AVFoundation Video Assembly (Ken Burns, transitions,
     │   │   audio mixing, text overlays)
     │   └── AVPlayer Playback
@@ -17,11 +22,11 @@ iOS App (SwiftUI)
     ├── Supabase (Backend)
     │   ├── Auth (Apple Sign In)
     │   ├── Database (PostgreSQL)
-    │   ├── Storage (pet photos, episode templates, music, scripts)
-    │   └── Edge Functions (pet swap fallback if on-device fails)
+    │   ├── Storage (pet photos, episode metadata)
+    │   └── Edge Functions (cloud fallback only if on-device fails)
     │
-    └── Pre-Generated Content (created offline, stored in Supabase)
-        ├── Template images per series (8-10 per episode)
+    └── Bundled Content (shipped with app or stored in Supabase)
+        ├── Scene description prompts per series (text, not images)
         ├── Voiceover scripts per episode
         ├── Music tracks per genre
         └── Text overlay content and timing
@@ -86,25 +91,32 @@ CREATE POLICY "Users can only see their own episodes"
 
 ## Episode Generation Pipeline
 
-Episodes are NOT generated from scratch per-user. The pipeline has
-three layers:
+The pipeline uses Apple's Image Playground framework (ImageCreator API)
+to generate scene images on-device, then AVFoundation to assemble video.
 
-**Layer 1: Pre-Generated Templates (offline, one-time)**
-- Template images are generated ahead of time using AI image tools
-- Each series has multiple episode templates (8-10 images each)
-- Voiceover scripts, music tracks, and text overlays are pre-authored
-- All stored in Supabase Storage
-- One-time cost: ~$5-10 via fal.ai, or free using Qwen-Image/SDXL
+**Layer 1: Scene Image Generation (on-device, ImageCreator)**
+- When user taps 'Create Episode', the app:
+  1. Passes pet photo to Foundation Models (iOS 26+) to generate a
+     structured text description with breed, colors, markings, texture
+  2. Combines pet description + scene description into a `.text()` concept
+  3. Calls ImageCreator with the text-only concept (NO `.image()` needed)
+- IMPORTANT: `ImagePlaygroundOptions.Personalization` is PEOPLE-ONLY.
+- IMPORTANT: `.image()` concept scored 0-2/5 on Recognition. Foundation
+  Models descriptions scored 5/5. Use text-only prompts.
+- NEVER use "tuxedo" in prompts (puts literal suit on cats).
+- Style: `.animation` only (on-device, $0, offline, unlimited)
+- Generates 8-10 scene images per episode
+- No pre-generated template images needed
+- Voiceover scripts, music tracks, and text overlays are pre-authored per series
+- Target: all scene images generated in under 30 seconds
 
-**Layer 2: Pet Identity Transfer (per-user, per-episode)**
-- User's pet photo is transferred into each template image
-- Method TBD pending quality testing:
-  - On-device via Core ML (ideal: $0 cost, no concurrency limits)
-  - Cloud fallback via Supabase Edge Function + fal.ai API
-- Target: 8 images processed in under 30 seconds
+**Fallback for non-Apple-Intelligence devices:**
+- Vision framework (VNGenerateForegroundInstanceMaskRequest) to lift pet
+  from photo + Core Image (CIBlendWithMask) to composite onto background
+  templates. Tested and working — see PET_TRANSFER_TEST_PLAN.md.
 
-**Layer 3: On-Device Video Assembly (AVFoundation)**
-- Swapped images composited into MP4 on the device
+**Layer 2: On-Device Video Assembly (AVFoundation)**
+- Generated scene images composited into MP4 on the device
 - Ken Burns pan/zoom effects per image
 - Crossfade transitions between scenes
 - Voiceover audio mixed with background music
@@ -131,61 +143,83 @@ are NO LONGER NEEDED. There is no server-side video generation.
 
 ---
 
-### Pet Identity Transfer Options
+### Pet Description & Identity Transfer
 
-**See PET_TRANSFER_TEST_PLAN.md for the detailed test plan and
-Claude Code/Xcode Agent prompts for executing each phase.**
+**See PET_DESCRIPTION_RESEARCH.md for full research findings.**
 
-The PRIMARY approach being tested is an on-device compositing pipeline
-using Apple Vision (VNGenerateForegroundInstanceMaskRequest for subject
-lifting, VNRecognizeAnimalsRequest for detection) + Core Image
-(CIBlendWithMask for compositing). This is NOT an AI face swap — it's
-a cut-and-composite pipeline. Cost: $0. Speed: <2 seconds on-device.
+Testing showed Foundation Models-generated descriptions score 5/5
+on Recognition vs 0-2/5 for `.image()` concept. The key to good
+results is accurate breed terminology in the prompt, which Foundation
+Models produces automatically from a pet photo.
 
-Cloud fallback (FLUX Kontext via fal.ai) is tested only if on-device
-quality scores below 3.0/5.0 average across the evaluation rubric.
+**PRIMARY (iOS 26+): Apple Foundation Models Framework**
+- On-device 3B parameter multimodal LLM
+- Accepts image input, returns structured PetDescription
+- Uses @Generable macro for breed, colors, markings, texture, features
+- Produces breed-specific terminology ImageCreator understands
+- Single API call replaces the entire Vision + Core Image pipeline
+- $0 cost, on-device, offline, private
 
-| Method | Where | Cost/image | Speed | Quality (animals) |
-|--------|-------|-----------|-------|--------------------|
-| FLUX Kontext | Cloud (fal.ai) | $0.04 | ~5-10s | TBD |
-| IP-Adapter | On-device (Core ML) | $0 | TBD | TBD |
-| Custom compositing | On-device | $0 | <1s | Basic |
-| InsightFace swap | Cloud or device | $0.035 | ~3-5s | Poor for animals |
+**FALLBACK (iOS 17-25): Core ML breed classifier + Vision**
+- Core ML breed classifier (MobileNetV2, ~5MB) for breed name
+- VNRecognizeAnimalsRequest for species confirmation
+- VNDetectAnimalBodyPoseRequest for pose/proportions
+- Less accurate than Foundation Models but works on older devices
 
-The ideal end-state is fully on-device processing. Cloud fallback
-via Supabase Edge Function if on-device quality is insufficient.
+**COMPOSITING FALLBACK (non-Apple-Intelligence devices):**
+- Vision subject lifting + Core Image compositing
+- Tested in Phase 1 — works on all test photos
 
-IMPORTANT: InsightFace inswapper_128 is optimized for human faces
-and may not work well for animal faces. The commercial license also
-requires separate negotiation for paid apps. Quality testing with
-actual pet photos is required before committing to any method.
+**PROMPT RULES (learned from testing):**
+- NEVER use "tuxedo" — ImageCreator puts a literal suit on cats
+- NEVER use "split face" — confuses the model, may trigger content filters
+- USE breed-specific terminology ("parti-colored Shih Tzu with a dark
+  black facial mask" not "black and white dog")
+- Text-only `.text()` prompts ONLY — no `.image()` concept needed
+- `ImagePlaygroundOptions.Personalization` is PEOPLE-ONLY, do not use
 
 ---
 
 ## Testing Strategy
 
-**Phase 1: Template Generation (Cost: ~$5-10)**
-- Generate 8-10 template images for one series using fal.ai FLUX Pro
-- Curate for quality, composition, and story flow
-- Store in Supabase Storage
+**See MICRODRAMA_E2E_TEST.md for the full phased test plan.**
 
-**Phase 2: Pet Identity Transfer Testing (Cost: ~$5-10)**
-- Test each transfer method with real pet photos (Wiley and Rudy)
-- Evaluate quality: does the output look like the actual pet?
-- Test with different breeds, colors, poses
-- Determine if on-device (Core ML) quality is sufficient
-- If not, establish cloud fallback via fal.ai
+**Phase 1 (COMPLETED):** Vision subject lifting + animal detection.
+Results in test-outputs/ — all passed.
 
-**Phase 3: AVFoundation Assembly (Cost: $0)**
-- Build the on-device video assembly pipeline
-- Test Ken Burns effects, transitions, audio mixing
-- Validate output quality and performance on iPhone
-- Target: assemble 60-second episode in under 10 seconds
+**Phase 1C (COMPLETED):** ImageCreator .image() concept test.
+6 outputs in test-outputs/ic-* files.
 
-**Phase 4: End-to-End (Cost: minimal)**
-- Full flow: tap Create → pet transfer → assembly → playback
-- Measure total time from tap to playback
-- Target: under 60 seconds total
+**Phase 2A (COMPLETED):** Scored ImageCreator .image() outputs.
+Result: Recognition 0-2/5. Style appeal 5/5. `.image()` is not viable
+for pet identity but animation style is confirmed.
+
+**Phase 2C (COMPLETED):** Vision pet description extractor built.
+Result: Automated color analysis was inaccurate (black fur read as
+brown, shadows read as gray). VNClassifyImageRequest returned only
+generic taxonomy labels, not useful texture descriptors.
+
+**Phase 2C+ (COMPLETED):** Text-only scene generation with manually
+corrected descriptions. Result: Recognition 4/5 with breed-specific
+terminology. Text-only definitively beats .image() concept.
+
+**Phase 2D (COMPLETED):** Hybrid tested. Result: Recognition 3/5.
+Adding .image() to good text descriptions actually HURTS recognition.
+
+**Foundation Models Test (COMPLETED):** Apple Foundation Models framework
+generates breed-specific descriptions from pet photos on-device.
+Result: Recognition 5/5 for both Wiley and Rudy. PERFECT SCORES.
+This is the production pipeline. See PET_DESCRIPTION_RESEARCH.md.
+
+**Phase 3:** Generate 8 episode scene images for "The Throne" series.
+
+**Phase 4:** Build AVFoundation video assembly pipeline (Ken Burns,
+transitions, TTS, text overlays). Target: < 15 seconds assembly time.
+
+**Phase 5:** TTS narration via AVSpeechSynthesizer.
+
+**Phase 6:** End-to-end: pet photo → description → scenes → video → playback.
+Target: under 60 seconds total.
 
 ### Environment Variable Strategy
 ```
@@ -229,24 +263,28 @@ and logged in a changelog independently.
 - **Changelog:** "Sync pet profiles to Supabase with photo storage"
 
 ### Stage 4: Template Content Pipeline
-**Feature:** TEMPLATE-001 — Pre-generate episode templates
-- Generate template images for each series (8-10 per episode)
+**Feature:** TEMPLATE-001 — Author episode scene descriptions
+- Write text prompts for each series (8-10 scene descriptions per episode)
+  that ImageCreator will use to generate images on-demand
 - Author voiceover scripts per episode
 - Select/create music tracks per genre
 - Define Ken Burns parameters and text overlays per scene
-- Upload all content to Supabase Storage
-- **Test:** Templates load correctly from Storage
-- **Changelog:** "Add pre-generated episode templates to Storage"
+- Bundle scene descriptions as JSON with the app or store in Supabase
+- NOTE: No pre-generated images needed — ImageCreator generates on-device
+- **Test:** Scene descriptions produce quality output via ImageCreator
+- **Changelog:** "Add episode scene descriptions and audio assets"
 
 ### Stage 5: Pet Identity Transfer
-**Feature:** PETTRANSFER-001 — Pet identity into template images
-**Detailed plan:** PET_TRANSFER_TEST_PLAN.md
-- Phase 1: Validate Vision subject lifting + animal detection (macOS CLI)
-- Phase 2: Build full compositing pipeline in Xcode test view
-- Phase 3: Generate background-only templates for Approach B
-- Phase 4: Evaluate quality scores, decide on-device vs cloud fallback
-- Primary method: Vision + Core Image on-device compositing ($0/image)
-- Fallback: FLUX Kontext Pro via fal.ai ($0.04/image)
+**Feature:** PETTRANSFER-001 — Pet identity in scene images
+**Research:** PET_DESCRIPTION_RESEARCH.md
+**Test results:** MICRODRAMA_E2E_TEST.md (Phases 2A/2C/2D all completed)
+- Foundation Models descriptions: Recognition 5/5 ✓
+- .image() concept alone: Recognition 0-2/5 ✗
+- Hybrid (text + image): Recognition 3/5 (worse than text-only)
+- DECISION: Text-only with Foundation Models-generated descriptions
+- Primary: Foundation Models framework (iOS 26+) for pet description
+- Fallback: Core ML breed classifier + Vision APIs (iOS 17-25)
+- Compositing fallback: Vision + Core Image for non-AI devices
 - **Test:** Pet is recognizable in output images, avg quality ≥ 3.0/5.0
 - **Changelog:** "Add pet identity transfer pipeline"
 

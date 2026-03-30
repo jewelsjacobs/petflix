@@ -339,6 +339,106 @@ the cloud fallback (FLUX Kontext at $0.04/image via fal.ai).
 
 ---
 
+## Apple Image Playground / ImageCreator Approach
+
+**Discovered March 30, 2026. Updated March 30, 2026 with Personalization
+limitation and new text-only/hybrid approaches.**
+
+**IMPORTANT UPDATE:** `ImagePlaygroundOptions.Personalization` is
+PEOPLE-ONLY per Apple's SDK documentation. It does NOT work for pets.
+The `.personalization` enum enables a people picker and name detection
+for human faces only. For pets, we use `.image()` concepts and/or
+Vision-extracted text descriptions instead.
+
+**See MICRODRAMA_E2E_TEST.md for the full approach comparison (Phases 2A/2C/2D)**
+which supersedes the simpler ImageCreator test described here.
+
+Apple's Image Playground framework (iOS 18.4+, macOS 15.4+) includes
+the `ImageCreator` API, which provides ON-DEVICE text-to-image generation
+using Apple Intelligence models. This is a fundamentally different approach
+from the Vision + Core Image compositing pipeline.
+
+### How It Works
+
+`ImageCreator` accepts `ImagePlaygroundConcept` objects that can combine:
+- `.text("description of the scene")` — what to generate
+- `.image(cgImage)` — a REFERENCE IMAGE to influence the output
+
+Three approaches are being tested (see MICRODRAMA_E2E_TEST.md):
+- **Approach A:** `.image()` concept only (pet photo as reference)
+- **Approach B:** Text-only (Vision-extracted pet description in prompt)
+- **Approach C:** Hybrid (both .image() + text description)
+
+Approach B uses `VNRecognizeAnimalsRequest`, `VNDetectAnimalBodyPoseRequest`,
+and Core Image color analysis to build a detailed text description
+of the pet (breed, colors, markings, fur type) which is then used
+in the `.text()` prompt without any `.image()` concept. This may
+produce more consistent identity across multiple scenes.
+
+### Advantages Over the Compositing Pipeline
+- **Identity transfer is built-in** — the model handles making the
+  output look like the reference pet, not our compositing code
+- **Pose variety for free** — the model can generate the pet in ANY
+  pose matching the scene, not just the pose from the photo
+- **No template animal removal** — we don't need existing templates
+  with animals to replace. Just describe the scene.
+- **Lighting consistency** — the model generates the pet WITH the scene
+  lighting, not composited on top with mismatched lighting
+- **Simpler pipeline** — no Vision segmentation, no Core Image blending,
+  no coordinate conversion. Just: prompt + pet photo → generated image.
+- **$0 cost, fully on-device** — same as the compositing approach
+
+### Limitations / Risks
+- **Personalization API is people-only** — `ImagePlaygroundOptions.Personalization`
+  does NOT work for pets. Cannot use name-based prompts or automatic pet
+  recognition. Must use `.image()` concepts or text descriptions instead.
+- **Style options are limited:** animation, illustration, sketch only.
+  No photorealistic style. The output will look stylized, not like a
+  real photo. This may actually be FINE for microdramas — the stylized
+  look adds to the dramatic/cinematic vibe.
+- **Requires iOS 18.4+ and Apple Intelligence** — not all devices support
+  it. Need to check `ImageCreator.isAvailable` at runtime.
+- **Identity fidelity is approximate** — the `.image()` concept influences
+  but doesn't guarantee the pet looks identical. This is why we're testing
+  text-only (Approach B) and hybrid (Approach C) alternatives.
+- **Limited to 4 images per request** — fine for our needs (8-10 per
+  episode, just make 2-3 requests)
+- **Image Playground models must be downloaded** — first-time setup
+  requires model download on the device
+- **No control over composition** — we can describe the scene but can't
+  precisely control where the pet appears or what pose they strike
+
+### Test Plan: ImageCreator Phase
+
+**Phase 1C: ImageCreator Quick Test**
+Tool: Claude Code → Xcode project
+Goal: Generate dramatic scene images using ImageCreator with pet photos
+
+Test matrix:
+| Test | Pet Photo | Text Prompt | Style |
+|------|-----------|-------------|-------|
+| IC-1 | Wiley (close-up) | "A black cat with golden eyes sitting on an ornate golden throne in a medieval palace, dramatic candlelight" | .animation |
+| IC-2 | Wiley (close-up) | same prompt | .illustration |
+| IC-3 | Rudy (full body) | "A small fluffy black and white dog standing in a rainy neon-lit city street at night, dramatic cinematic lighting" | .animation |
+| IC-4 | Rudy (full body) | same prompt | .illustration |
+| IC-5 | Rudy (full body) | "A small fluffy black and white dog wearing royal armor, magical glowing runes around them, fantasy setting" | .animation |
+| IC-6 | Wiley (close-up) | "A black cat with golden eyes gazing intensely, dark palace corridor with candlelight, political intrigue" | .animation |
+
+**Evaluation:**
+Score each output on the same 1-5 rubric (Recognition, Integration,
+Edge Quality, Scale/Position) plus a new dimension:
+5. **Style appeal** (1-5): Does the stylized look work for a microdrama?
+   - 1 = Looks like a children's coloring book
+   - 3 = Stylized but compelling
+   - 5 = The style IS the selling point — dramatic and shareable
+
+**Decision:** If ImageCreator avg ≥ 3.5 AND the pet is recognizable,
+this becomes the PRIMARY approach (replacing the compositing pipeline).
+The compositing pipeline becomes the fallback for devices that don't
+support Apple Intelligence.
+
+---
+
 ## Open Problem 1: Generating Pets in Different Poses
 
 The compositing approach (lift + paste) preserves the pet's ORIGINAL

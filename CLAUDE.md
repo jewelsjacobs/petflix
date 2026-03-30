@@ -51,33 +51,100 @@ Do NOT give the first thing that comes to mind. Instead:
 
 ## Episode Architecture (READ THIS BEFORE BUILDING EPISODE FEATURES)
 
-Episodes are NOT generated from scratch per-user. The system has three layers:
+The system has two layers:
 
-1. PRE-GENERATED TEMPLATES: Episode images are created offline and stored
-   in Supabase Storage. Each series has 8-10 template images per episode
-   featuring placeholder animals in dramatic scenes. These are curated
-   for quality and never regenerated per-user.
+1. SCENE IMAGE GENERATION: The app generates 8-10 dramatic scene images
+   per episode ON-DEVICE using Apple's `ImageCreator` API (Image Playground
+   framework, iOS 18.4+). No pre-generated templates are stored server-side.
+   Scenes are generated per-episode from text prompts + pet photo reference.
 
-2. PET IDENTITY TRANSFER: At runtime, the user's pet profile photo is
-   used to transfer their pet's likeness into each template image. The
-   method is TBD (FLUX Kontext, Core ML IP-Adapter, or custom compositing).
-   The goal is ON-DEVICE processing via Core ML to eliminate server costs
-   and concurrency limits. Cloud fallback via Supabase Edge Function if
-   on-device quality is insufficient.
+   **See MICRODRAMA_E2E_TEST.md for the full test plan and approach comparison.**
 
-3. ON-DEVICE VIDEO ASSEMBLY: Swapped images are composited into a playable
+   PET DESCRIPTION (how we tell ImageCreator what the pet looks like):
+
+   PRIMARY (iOS 26+): Apple Foundation Models Framework
+   Pass the pet's photo to the on-device 3B parameter LLM. It returns
+   a structured description with breed, coat colors, markings, texture,
+   facial features — all in proper breed terminology that ImageCreator
+   understands. This is a single API call that replaces the entire
+   Vision + Core Image pipeline. See PET_DESCRIPTION_RESEARCH.md.
+
+   FALLBACK (iOS 17-25): Core ML breed classifier + Vision APIs
+   Core ML breed classifier (MobileNetV2, ~5MB) for breed name +
+   VNRecognizeAnimalsRequest (species) + VNDetectAnimalBodyPoseRequest
+   (pose/proportions). Less accurate than Foundation Models.
+
+   SCENE GENERATION (how we create the dramatic images):
+
+   Text-only `.text()` prompts combining pet description + scene description.
+   Foundation Models descriptions scored 5/5 on Recognition in testing.
+   `.image()` concept scored 0-2/5. Do NOT use `.image()` as primary approach.
+
+   CRITICAL RULES:
+   - `ImagePlaygroundOptions.Personalization` is PEOPLE-ONLY. Do not use.
+   - NEVER use "tuxedo" in prompts — ImageCreator puts a literal suit on cats.
+   - NEVER use "split face" for dogs — describe colors directly.
+   - USE breed-specific terminology (e.g. "parti-colored Shih Tzu with a
+     dark black facial mask" not "black and white dog").
+
+   Style: `.animation` ONLY (no ChatGPT styles).
+   Cost: $0. Fully on-device. Works offline. Unlimited generations.
+   API ref: https://developer.apple.com/documentation/imageplayground/imagecreator
+
+   COMPOSITING FALLBACK (non-Apple-Intelligence devices): On-device
+   Vision (VNGenerateForegroundInstanceMask) + Core Image (CIBlendWithMask).
+
+   LAST RESORT: FLUX Kontext Pro via fal.ai ($0.04/image) through
+   Supabase Edge Function. Only if ALL on-device approaches fail.
+
+2. ON-DEVICE VIDEO ASSEMBLY: Scene images are assembled into a playable
    MP4 ON THE DEVICE using AVFoundation. Ken Burns effects, transitions,
    voiceover audio, background music, and text overlays. No server-side
    video rendering (no Shotstack, no Creatomate). AVPlayer plays the result.
 
 The pet's profile photo serves double duty: avatar icon AND source for
-pet identity transfer. No separate upload during episode creation.
+scene generation. No separate upload during episode creation.
 
 DO NOT:
 - Implement server-side video rendering
-- Generate episode images from scratch per-user
 - Use Kling, Sora, or any full video generation API
-- Build episode features without reading PRODUCT_SPEC.md and BACKEND_SPEC.md
+- Use `ImagePlaygroundOptions.Personalization` for pets (it's people-only)
+- Use "tuxedo" in any ImageCreator prompt (puts a literal suit on cats)
+- Use "split face" in any ImageCreator prompt (confuses the model)
+- Use `.image()` concept as the primary pet identity approach (scored 0-2/5)
+- Build episode features without reading PRODUCT_SPEC.md and MICRODRAMA_E2E_TEST.md
+
+## Test Pets
+
+Julia's real pets are the primary test subjects for identity transfer:
+- **Wiley** — Sleek black domestic shorthair cat with a white belly, white
+  chest, white paws (pink paw pads), golden-yellow eyes, pointed black ears,
+  short smooth fur. Black on top/back, white underneath. NOT a gray tabby.
+  NEVER use the word "tuxedo" in prompts — ImageCreator interprets it
+  literally and puts a suit on the cat. Describe the colors directly instead.
+- **Rudy** — Small white Shih Tzu with black ears and black tail. Short hair
+  on the body with puffy hair around the face. Dark round eyes, black nose.
+  NOT a "split face" dog. NOT brown/tan. He is a mostly WHITE dog with
+  black ears and black tail. That's it — keep descriptions simple and accurate.
+
+Test photos are in `test-photos/`:
+- `wiley-closeup.jpeg` — Wiley close-up (partial body, curled on lap)
+- `rudy-closeup.jpeg` — Rudy close-up (head/upper body by window)
+- `rudy-fullbody.png` — Rudy full body (lying on leather recliner)
+
+## Pet Photo Requirements (for profile creation features)
+
+The compositing pipeline works best with FULL-BODY pet photos. When
+building profile creation UI:
+- Guide users: "Use a photo that shows your pet's whole body"
+- Run VNRecognizeAnimalsRequest after selection to confirm a pet is found
+- Show the extracted cutout preview for user confirmation
+- Allow image CROPPING for the profile avatar (store full photo separately
+  for compositing, cropped version for the circular profile icon)
+- If user uploads a close-up/partial photo, show a gentle notice:
+  "For best results, use a full-body photo. With a close-up, your pet
+  may look a little different in some scenes."
+- Tag profiles internally as "full_body" or "partial" for template matching
 
 ## UI Polish Rules
 
@@ -119,9 +186,10 @@ Before presenting any UI change, verify:
 - [ ] Only 2 tabs exist: Home and My Petflix
 - [ ] The creation flow is obvious: tap series → create episode
 - [ ] No jargon in descriptions (no "arc", "trope", "narrative", "genre", "drama")
-- [ ] Episode features use pre-generated templates, not per-user generation
+- [ ] Episode scene generation uses ImageCreator on-device (not server-side)
 - [ ] No server-side video rendering in the pipeline
 - [ ] Pet identity transfer uses the profile photo, not a separate upload
+- [ ] No use of ImagePlaygroundOptions.Personalization (people-only, not for pets)
 
 ## Technical Reference
 
@@ -136,21 +204,47 @@ Before presenting any UI change, verify:
 - **Logo font**: Bebas Neue
 - **Body text**: System default (SF Pro)
 - **Video assembly:** AVFoundation (AVMutableComposition + AVAssetWriter)
+- **Ken Burns effects:** AVVideoCompositionCoreAnimationTool with Core Animation
 - **Video playback:** AVPlayer
-- **Pet identity transfer:** TBD (Core ML on-device preferred, fal.ai cloud fallback)
-- **Episode templates:** Pre-generated, stored in Supabase Storage
+- **Pet description (PRIMARY):** Apple Foundation Models framework (iOS 26+).
+  On-device multimodal LLM analyzes pet photo, returns structured breed/color/
+  markings description using proper terminology. Single API call.
+  See PET_DESCRIPTION_RESEARCH.md.
+- **Pet description (FALLBACK):** Core ML breed classifier + VNRecognizeAnimalsRequest
+  + VNDetectAnimalBodyPoseRequest. For devices on iOS 17-25.
+- **Scene generation:** Text-only `.text()` prompts (pet description + scene).
+  Foundation Models descriptions scored 5/5 Recognition. `.image()` concept
+  scored 0-2/5 — do NOT use as primary.
+- **Personalization API:** PEOPLE-ONLY, does NOT work for pets.
+- **Compositing fallback:** Vision + Core Image (non-Apple-Intelligence devices).
+- **Voiceover/TTS:** AVSpeechSynthesis (system voices, Personal Voice on iOS 18+)
+- **Sound/music:** AVAudioPlayer (simple) or AVAudioEngine (mixing)
+- **Text overlays:** SwiftUI Text (preview), AVMutableComposition (baked into video)
+- **Episode templates:** NOT pre-generated. ImageCreator generates scene images
+  on-demand from text prompts + pet photo. No template storage needed.
 - **No server-side rendering:** No Shotstack, no Creatomate, no Remotion
+- **No cloud image generation:** No fal.ai, no ChatGPT styles. Everything on-device.
+- **No Personalization API for pets:** ImagePlaygroundOptions.Personalization
+  is people-only per Apple docs.
+- **Prompt rules:** NEVER use "tuxedo" (puts suit on cat), NEVER use "split face"
+  (confuses model). Use breed-specific terminology from Foundation Models output.
 
 ## File Structure
 
 - `PRODUCT_SPEC.md` — Product decisions, series definitions, screen specs
 - `BACKEND_SPEC.md` — Backend architecture, database schema, implementation stages
+- `PET_TRANSFER_TEST_PLAN.md` — Detailed test plan for pet identity transfer pipeline
+- `MICRODRAMA_E2E_TEST.md` — End-to-end microdrama generation test (episode pipeline)
+- `PET_DESCRIPTION_RESEARCH.md` — Research on automated pet description from photos
+- `FEASIBILITY_CHECK.md` — Cost/speed analysis of video generation approaches
 - `STRATEGY_REVIEW.md` — Product strategy thinking and market research
 - `HANDOFF.md` — Technical context and project history (may be outdated)
 - `Petflix/` — Main app source
 - `Petflix/Assets.xcassets/` — Image assets (posters, profiles, icons)
 - `Petflix/Features/` — Feature modules (Home, Profile, Splash, etc.)
 - `Petflix/Core/` — Shared models, services, theme
+- `test-photos/` — Actual pet photos for identity transfer testing
+- `test-outputs/` — Output from transfer pipeline tests (gitignored)
 
 ## Asset Naming
 
