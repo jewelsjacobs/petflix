@@ -37,8 +37,33 @@ Do NOT give the first thing that comes to mind. Instead:
 - READ PRODUCT_SPEC.md before ANY code changes. It is the source of truth.
 - Petflix is a CREATION TOOL, not a streaming service. The home screen should
   prompt users to CREATE, not browse non-existent content.
-- Genre templates are tropes (Rise to Power, Betrayed, Forbidden, etc.)
-  NOT named series. Users create their own content within these genres.
+- Series templates (Rise to Power, Betrayed, Forbidden, etc.) are dramatic
+  worlds the user's pet gets cast into. Users pick a series and create episodes.
+- In user-facing UI text, always call them "series" — NEVER "genre", "drama",
+  "story", or "template". Users understand "series" from Netflix.
+- The top bar must NOT have a text pill like "For Mr. Whiskers" — instead show
+  the pet's profile photo as a small circular avatar on the right side of the
+  top bar with a tiny down-chevron indicator next to it (like Netflix does).
+  This signals it's tappable. Tapping it goes back to Profile Selection.
+  No pet name text needed — keep it clean.
+- ALL UI elements must have proper padding and spacing. No text clipping,
+  no cramped labels, no elements touching the screen edges.
+
+## UI Polish Rules
+
+Every screen must look professional. Before presenting any UI change, check:
+- No dead space (large empty black areas with no content)
+- All text has proper padding — never clipped, truncated, or touching edges
+- Images fill their containers properly — no gaps between image and content
+- The hero image on any screen should extend to the top of the safe area
+  with no black gap above it
+- All tappable elements are at least 44pt tall (Apple HIG minimum)
+- Spacing between sections is consistent (use 16-24pt standard gaps)
+- Profile avatars are circular, not square with rounded corners
+- Font sizes are readable — body text at least 13pt, labels at least 11pt
+
+**KNOWN BUG:** Profile Selection screen has a large black gap above the
+hero image. The hero image should extend to the top of the screen/safe area.
 - All genres are PET-AGNOSTIC — never hard-code "dog" or "cat"
 - Mood images have NO text baked in — titles are SwiftUI overlays with custom fonts
 - No duplicate images anywhere in the UI
@@ -54,14 +79,16 @@ Do NOT give the first thing that comes to mind. Instead:
 Before presenting any UI change, verify:
 - [ ] Does the UI reinforce CREATION, not browsing?
 - [ ] No duplicate mood images visible on any screen
-- [ ] Genre names match PRODUCT_SPEC.md
+- [ ] Series names match PRODUCT_SPEC.md
+- [ ] No user-facing text says "genre", "drama", "story" or "template" — always "series"
 - [ ] No non-functional buttons or icons visible
 - [ ] Mood images are text-free; titles are SwiftUI overlays
-- [ ] Genre titles use custom fonts (not system fonts)
+- [ ] Series titles use custom fonts (not system fonts)
 - [ ] All copy works for ANY pet type, not just dogs or cats
 - [ ] No fake content rows (no Trending, no Coming Soon)
 - [ ] Only 2 tabs exist: Home and My Petflix
-- [ ] The creation flow is obvious: tap genre → create episode
+- [ ] The creation flow is obvious: tap series → create episode
+- [ ] No jargon in descriptions (no "arc", "trope", "narrative", "genre", "drama")
 
 ## Technical Reference
 
@@ -79,7 +106,9 @@ Before presenting any UI change, verify:
 ## File Structure
 
 - `PRODUCT_SPEC.md` — Product decisions, series definitions, screen specs
-- `HANDOFF.md` — Technical context and project history
+- `BACKEND_SPEC.md` — Backend architecture, database schema, implementation stages
+- `STRATEGY_REVIEW.md` — Product strategy thinking and market research
+- `HANDOFF.md` — Technical context and project history (may be outdated)
 - `Petflix/` — Main app source
 - `Petflix/Assets.xcassets/` — Image assets (posters, profiles, icons)
 - `Petflix/Features/` — Feature modules (Home, Profile, Splash, etc.)
@@ -123,6 +152,51 @@ Examples of GOOD copy:
   "They took everything. Now your pet takes it all back."
   "One chance. One crown. Everyone else is in the way."
   "Your pet just fell for the one they can't have."
+
+## User Flow Walkthrough (Must Be Functional)
+
+After every major change, walk through the app as a user would and verify
+every step is reachable. If any screen is missing or any tap leads nowhere,
+fix it before presenting the work.
+
+**The complete user journey:**
+
+1. App launches → Splash animation plays → auto-navigates to Profile Selection
+2. Profile Selection screen:
+   - Route A: Tap "Add" → create a new pet profile (name + photo upload) → return to profile selection
+   - Route B: Tap an existing pet profile → navigate to Home
+3. Home screen:
+   - See series cards with mood images and names
+   - Scroll through series
+   - Tap a series card → navigate to Series Detail
+   - Tap profile icon in top bar → navigate back to Profile Selection
+4. Series Detail screen:
+   - See series mood image, title, description
+   - Tap "Create Episode" → episode creation flow
+5. Episode creation (v1 can be a placeholder/coming soon screen, but the
+   button must navigate SOMEWHERE — never a dead-end tap)
+6. My Petflix tab:
+   - Shows created episodes (empty state for v1)
+
+**Every button must go somewhere.** If it can't do anything yet, either:
+- Show a placeholder screen explaining the feature is coming
+- Don't show the button at all
+
+NEVER have a button that does nothing when tapped. That's broken UX.
+
+**KNOWN BUG:** The app currently skips ProfileSelectionView and goes straight
+to HomeView after the splash screen. The navigation flow in PetflixApp.swift
+and/or AppState.swift must enforce: Splash → ProfileSelection → Home.
+The user should NEVER see the Home screen without first selecting a profile.
+
+**MISSING FEATURE:** There is no way to return to the Profile Selection screen
+from the Home screen. The user needs to be able to switch profiles. Options:
+- A profile icon/avatar in the top bar that navigates back to Profile Selection
+- Netflix uses the profile avatar in the top-right corner for this
+
+**MISSING FEATURE:** There is no way to delete a pet profile. The Edit button
+on Profile Selection must allow the user to remove profiles they've created.
+This needs a functional edit mode with delete capability.
 
 ## Workflow: Plan Then Execute
 

@@ -41,14 +41,18 @@ What makes microdramas addictive:
 
 ---
 
-## Genre Templates
+## Series Templates
 
-These are NOT pre-made series. They are GENRE TEMPLATES — dramatic scenarios
-that any pet (dog, cat, bird, hamster, fish) gets cast into. The user picks
-a genre, and the AI creates episodes starring THEIR pet in that world.
+Each template defines a series — a dramatic world that the user's pet gets
+cast into. The user picks a series, and the app creates episodes starring
+THEIR pet in that world.
 
-Genre names describe the VIBE, not a specific show. They are short,
-evocative, and work as a category label the user taps to create content.
+IMPORTANT: In all user-facing UI text, call these "series" — NOT "genres,"
+"dramas," "stories," or "templates." Users understand "series" from Netflix.
+The flow is: "Pick a series" → "Create Episode."
+
+Series names describe the VIBE. They are short, evocative, and work as
+a label the user taps to create content.
 
 ### 1. RISE TO POWER
 - **Genre:** Rags-to-riches / Power fantasy
@@ -137,30 +141,39 @@ Pet profile stores: name, photo, type (dog/cat for v1)
 - Genre title rendered as SwiftUI text overlay with custom font
 - "Who's Starring?" heading
 - Pet profile icons (user's actual pet photos)
-- Add / Edit buttons (stubs for v1)
+- Add button: opens AddPetView to create a new profile (name + photo)
+- Edit button: enters edit mode where profiles show delete buttons
+  - User can delete profiles they've created
+  - Must always have at least one profile remaining
 
 ### Screen 3: Home (Tab 1)
 This is a CREATION-FIRST screen, not a browse screen.
 
-- Top bar: "For [Pet Name]" — NO download icon, NO search icon
+- Top bar: Pet's profile photo as a small tappable circular avatar on the
+  right side → navigates back to Profile Selection.
+  NO text pill like "For Mr. Whiskers". NO download icon. NO search icon.
+  Keep the top bar clean. The pet's name can optionally appear next to the
+  avatar but is not required.
 - Hero area: Prompt to create — "What's [Pet Name] starring in today?"
-- 6 genre cards in a grid or horizontal scroll:
-  - Each card shows genre mood image + genre name in custom font
-  - Tap → Genre Detail screen
-- Below genres: "Your Episodes" section
+- 6 series cards in a grid or horizontal scroll:
+  - Each card shows mood image + series name in custom font + tagline
+  - Tap → Series Detail screen
+- Below series: "Your Episodes" section
   - Shows episodes the user has already created
   - Empty state for v1: "Create your first episode above"
 - NO "Trending" row (no content exists to trend)
 - NO "Coming Soon" locked cards (signals emptiness)
 - NO filter pills (nothing to filter)
 - NO "+ My List" button
+- NEVER use "genre", "drama", "story", or "template" in user-facing text.
+  Always call them "series."
 
-### Screen 4: Genre Detail (tapped from genre card)
-- Hero image for the genre (text-free mood art)
-- Genre name in custom font as SwiftUI overlay
-- Genre description (2-3 sentences selling the vibe)
+### Screen 4: Series Detail (tapped from series card)
+- Hero image for the series (text-free mood art)
+- Series name in custom font as SwiftUI overlay
+- Series description (1-2 punchy sentences selling the vibe)
 - "Create Episode" button — this is THE primary action
-- Below: Episodes the user has created in this genre
+- Below: Episodes the user has created in this series
   - Empty state for v1: "No episodes yet. Create your first!"
 - NO episode grid of pre-made content (doesn't exist)
 
@@ -233,8 +246,10 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 
 - Genre Detail page with "Create Episode" button that doesn't generate yet
 - "My Petflix" tab showing empty state
-- Profile photos hardcoded (Wiley and Rudy)
-- Add/Edit profile buttons as non-functional stubs
+- Default profiles for Wiley and Rudy pre-loaded
+- Add profile must work (name + photo picker)
+- Edit/delete profiles must work
+- Profile switching from Home screen must work
 - Genre mood images are all generated and ready in generated-posters/
 
 ---

@@ -1,6 +1,6 @@
 import SwiftUI
 
-// Hero poster with genre-specific title styling
+// Hero poster with series-specific title styling
 private struct HeroPoster {
     let image: String
     let titleLine1: String
@@ -71,21 +71,19 @@ private let heroPosters: [HeroPoster] = [
 ]
 
 struct ProfileSelectionView: View {
+    @Environment(AppState.self) private var appState
     var onSelectPet: (String) -> Void
 
-    private let pets: [(name: String, image: String)] = [
-        ("Mr. Whiskers", "ProfileWiley"),
-        ("Buddy", "ProfileRudy"),
-    ]
-
     @State private var hero = heroPosters.randomElement()!
+    @State private var showAddPet = false
+    @State private var isEditing = false
 
     var body: some View {
         ZStack {
             PetflixTheme.background.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Hero banner with genre-styled title
+                // Hero banner with series-styled title
                 ZStack(alignment: .bottom) {
                     Image(hero.image)
                         .resizable()
@@ -100,7 +98,7 @@ struct ProfileSelectionView: View {
                         endPoint: .bottom
                     )
 
-                    // Genre title overlay
+                    // Series title overlay
                     VStack(spacing: 0) {
                         Text(hero.titleLine1)
                             .font(hero.line1Font)
@@ -118,6 +116,7 @@ struct ProfileSelectionView: View {
                     }
                     .padding(.bottom, 20)
                 }
+                .ignoresSafeArea(edges: .top)
 
                 Spacer().frame(height: 20)
 
@@ -127,16 +126,51 @@ struct ProfileSelectionView: View {
 
                 Spacer().frame(height: 20)
 
-                HStack(spacing: 32) {
-                    ForEach(pets, id: \.name) { pet in
-                        Button { onSelectPet(pet.name) } label: {
+                // Pet profile grid
+                let columns = Array(repeating: GridItem(.fixed(76), spacing: 24), count: min(appState.petProfiles.count + 1, 4))
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(appState.petProfiles) { pet in
+                        if isEditing {
+                            // Edit mode: show delete overlay, no selection action
+                            ProfileTile(pet: pet, profileImage: profileImage)
+                                .overlay(alignment: .topTrailing) {
+                                    if appState.petProfiles.count > 1 {
+                                        Button {
+                                            withAnimation {
+                                                appState.deleteProfile(pet)
+                                                if appState.petProfiles.count <= 1 {
+                                                    isEditing = false
+                                                }
+                                            }
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.title3)
+                                                .symbolRenderingMode(.palette)
+                                                .foregroundStyle(.white, .red)
+                                                .background(Circle().fill(.black.opacity(0.3)))
+                                        }
+                                        .offset(x: 6, y: -6)
+                                    }
+                                }
+                        } else {
+                            // Normal mode: tap to select
+                            Button { onSelectPet(pet.name) } label: {
+                                ProfileTile(pet: pet, profileImage: profileImage)
+                            }
+                            .buttonStyle(BounceButtonStyle())
+                        }
+                    }
+
+                    // Add button inline with profiles (hidden during edit)
+                    if !isEditing {
+                        Button { showAddPet = true } label: {
                             VStack(spacing: 10) {
-                                Image(pet.image)
-                                    .resizable()
-                                    .scaledToFill()
+                                Image(systemName: "plus")
+                                    .font(.title3)
+                                    .foregroundStyle(PetflixTheme.textSecondary)
                                     .frame(width: 76, height: 76)
-                                    .clipShape(.rect(cornerRadius: 12))
-                                Text(pet.name)
+                                    .background(PetflixTheme.surface, in: Circle())
+                                Text("Add")
                                     .font(.caption)
                                     .foregroundStyle(PetflixTheme.textSecondary)
                             }
@@ -147,34 +181,73 @@ struct ProfileSelectionView: View {
 
                 Spacer()
 
-                HStack(spacing: 48) {
-                    Button { } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.title3)
-                                .frame(width: 44, height: 44)
-                                .background(PetflixTheme.surface, in: .rect(cornerRadius: 10))
-                            Text("Add").font(.caption)
-                        }
-                        .foregroundStyle(PetflixTheme.textSecondary)
+                // Edit / Done button
+                Button {
+                    withAnimation { isEditing.toggle() }
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: isEditing ? "checkmark" : "pencil")
+                            .font(.title3)
+                            .frame(width: 44, height: 44)
+                            .background(PetflixTheme.surface, in: .rect(cornerRadius: 10))
+                        Text(isEditing ? "Done" : "Edit")
+                            .font(.caption)
                     }
-                    Button { } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: "pencil")
-                                .font(.title3)
-                                .frame(width: 44, height: 44)
-                                .background(PetflixTheme.surface, in: .rect(cornerRadius: 10))
-                            Text("Edit").font(.caption)
-                        }
-                        .foregroundStyle(PetflixTheme.textSecondary)
-                    }
+                    .foregroundStyle(isEditing ? PetflixTheme.accent : PetflixTheme.textSecondary)
                 }
                 .padding(.bottom, 50)
             }
+        }
+        .sheet(isPresented: $showAddPet) {
+            AddPetView()
+        }
+    }
+
+    @ViewBuilder
+    private func profileImage(for pet: PetProfile) -> some View {
+        if let assetName = pet.assetImageName {
+            Image(assetName)
+                .resizable()
+                .scaledToFill()
+        } else if let data = pet.imageData, let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+        } else {
+            Image(systemName: "pawprint.fill")
+                .font(.title2)
+                .foregroundStyle(PetflixTheme.textSecondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(PetflixTheme.surface)
+        }
+    }
+}
+
+// MARK: - Profile Tile (circular avatar + name)
+
+private struct ProfileTile: View {
+    let pet: PetProfile
+    let profileImage: (PetProfile) -> AnyView
+
+    init(pet: PetProfile, profileImage: @escaping (PetProfile) -> some View) {
+        self.pet = pet
+        self.profileImage = { AnyView(profileImage($0)) }
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            profileImage(pet)
+                .frame(width: 76, height: 76)
+                .clipShape(Circle())
+            Text(pet.name)
+                .font(.caption)
+                .foregroundStyle(PetflixTheme.textSecondary)
+                .lineLimit(1)
         }
     }
 }
 
 #Preview {
     ProfileSelectionView { _ in }
+        .environment(AppState())
 }

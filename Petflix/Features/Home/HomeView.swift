@@ -1,8 +1,8 @@
 import SwiftUI
 
-// MARK: - Genre Template Data
+// MARK: - Series Template Data
 
-struct GenreTemplate: Identifiable {
+struct SeriesTemplate: Identifiable {
     let id = UUID()
     let name: String
     let tagline: String
@@ -12,8 +12,8 @@ struct GenreTemplate: Identifiable {
     let titleColor: Color
 }
 
-let genreTemplates: [GenreTemplate] = [
-    GenreTemplate(
+let seriesTemplates: [SeriesTemplate] = [
+    SeriesTemplate(
         name: "Rise to Power",
         tagline: "From nothing to everything.",
         description: "Your pet starts at the bottom. No name, no status, no respect. But that's about to change — and not everyone's going to like it.",
@@ -21,7 +21,7 @@ let genreTemplates: [GenreTemplate] = [
         titleFont: .custom("Cinzel-Bold", size: 22),
         titleColor: .white
     ),
-    GenreTemplate(
+    SeriesTemplate(
         name: "Betrayed",
         tagline: "They took everything. Now it's personal.",
         description: "Your pet trusted the wrong one. Now they know the truth — and they're not going to let it go.",
@@ -29,7 +29,7 @@ let genreTemplates: [GenreTemplate] = [
         titleFont: .custom("BlackOpsOne-Regular", size: 20),
         titleColor: .white
     ),
-    GenreTemplate(
+    SeriesTemplate(
         name: "Forbidden",
         tagline: "The one they can't have.",
         description: "Your pet just met someone who changes everything. But the world doesn't want them together. Some things are worth the risk.",
@@ -37,7 +37,7 @@ let genreTemplates: [GenreTemplate] = [
         titleFont: .custom("Playfair-Italic", size: 22),
         titleColor: .white
     ),
-    GenreTemplate(
+    SeriesTemplate(
         name: "The Throne",
         tagline: "One crown. Everyone wants it.",
         description: "Your pet just entered a world of royals, rivals, and dangerous secrets. Trust no one. Bow to no one.",
@@ -45,7 +45,7 @@ let genreTemplates: [GenreTemplate] = [
         titleFont: .custom("Cinzel-Bold", size: 22),
         titleColor: Color(red: 0.85, green: 0.75, blue: 0.5)
     ),
-    GenreTemplate(
+    SeriesTemplate(
         name: "Unleashed",
         tagline: "Something inside them just woke up.",
         description: "Your pet was ordinary — until now. New powers. New enemies. And no idea how deep this goes.",
@@ -53,7 +53,7 @@ let genreTemplates: [GenreTemplate] = [
         titleFont: .custom("BlackOpsOne-Regular", size: 20),
         titleColor: Color(red: 0.3, green: 0.8, blue: 1.0)
     ),
-    GenreTemplate(
+    SeriesTemplate(
         name: "Into the Unknown",
         tagline: "What's out there is waiting.",
         description: "A strange new world. An ancient mystery. Your pet is the only one brave enough to find out what happens next.",
@@ -67,7 +67,12 @@ let genreTemplates: [GenreTemplate] = [
 
 struct HomeView: View {
     let petName: String
-    @State private var heroGenre = genreTemplates.randomElement()!
+    @Environment(AppState.self) private var appState
+    @State private var heroSeries = seriesTemplates.randomElement()!
+
+    private var currentProfile: PetProfile? {
+        appState.petProfiles.first { $0.name == petName }
+    }
 
     var body: some View {
         NavigationStack {
@@ -75,16 +80,16 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 24) {
 
                     // Hero area — creation prompt
-                    HeroPrompt(petName: petName, genre: heroGenre)
+                    HeroPrompt(petName: petName, series: heroSeries)
 
-                    // Genre grid heading
-                    Text("Choose a Genre")
+                    // Series grid heading
+                    Text("Pick a Series")
                         .font(.custom("BebasNeue-Regular", size: 24))
                         .tracking(1)
                         .foregroundStyle(.white)
                         .padding(.horizontal)
 
-                    // 6 genre cards in 2-column grid
+                    // 6 series cards in 2-column grid
                     LazyVGrid(
                         columns: [
                             GridItem(.flexible(), spacing: 12),
@@ -92,11 +97,11 @@ struct HomeView: View {
                         ],
                         spacing: 12
                     ) {
-                        ForEach(genreTemplates) { genre in
+                        ForEach(seriesTemplates) { series in
                             NavigationLink {
-                                GenreDetailView(genre: genre)
+                                SeriesDetailView(series: series)
                             } label: {
-                                GenreCard(genre: genre)
+                                SeriesCard(series: series)
                             }
                             .buttonStyle(.plain)
                         }
@@ -122,20 +127,67 @@ struct HomeView: View {
 
                     Spacer(minLength: 40)
                 }
-                .padding(.top, 8)
+
             }
             .background(PetflixTheme.background)
             .toolbarBackground(PetflixTheme.background.opacity(0.9), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("For \(petName)")
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .fixedSize(horizontal: true, vertical: false)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        withAnimation {
+                            appState.hasSelectedProfile = false
+                        }
+                    } label: {
+                        ProfileAvatar(profile: currentProfile)
+                    }
                 }
             }
         }
+    }
+}
+
+// MARK: - Profile Avatar (top-right nav bar)
+
+private struct ProfileAvatar: View {
+    let profile: PetProfile?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Group {
+                if let profile {
+                    if let assetName = profile.assetImageName {
+                        Image(assetName)
+                            .resizable()
+                            .scaledToFill()
+                    } else if let data = profile.imageData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: "pawprint.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(PetflixTheme.textSecondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(PetflixTheme.surface)
+                    }
+                } else {
+                    Image(systemName: "pawprint.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(PetflixTheme.textSecondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(PetflixTheme.surface)
+                }
+            }
+            .frame(width: 28, height: 28)
+            .clipShape(Circle())
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(PetflixTheme.textSecondary)
+        }
+        .frame(height: 44)
+        .contentShape(Rectangle())
     }
 }
 
@@ -143,11 +195,11 @@ struct HomeView: View {
 
 private struct HeroPrompt: View {
     let petName: String
-    let genre: GenreTemplate
+    let series: SeriesTemplate
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            Image(genre.imageName)
+            Image(series.imageName)
                 .resizable()
                 .scaledToFill()
                 .frame(height: 380)
@@ -177,25 +229,23 @@ private struct HeroPrompt: View {
                     .tracking(1)
                     .foregroundStyle(.white)
 
-                Text("Pick a genre below and create your first episode")
+                Text("Pick a series below and create your first episode")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
             }
             .padding(20)
         }
-        .clipShape(.rect(cornerRadius: 12))
-        .padding(.horizontal)
     }
 }
 
-// MARK: - Genre Card
+// MARK: - Series Card
 
-private struct GenreCard: View {
-    let genre: GenreTemplate
+private struct SeriesCard: View {
+    let series: SeriesTemplate
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            Image(genre.imageName)
+            Image(series.imageName)
                 .resizable()
                 .scaledToFill()
                 .frame(height: 180)
@@ -209,13 +259,13 @@ private struct GenreCard: View {
             )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(genre.name)
-                    .font(genre.titleFont)
-                    .foregroundStyle(genre.titleColor)
+                Text(series.name)
+                    .font(series.titleFont)
+                    .foregroundStyle(series.titleColor)
                     .shadow(color: .black.opacity(0.8), radius: 3, y: 2)
                     .lineLimit(1)
 
-                Text(genre.tagline)
+                Text(series.tagline)
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(2)
