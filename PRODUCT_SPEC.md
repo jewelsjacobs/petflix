@@ -198,19 +198,20 @@ ONLY 2 TABS: Home and My Petflix. That's it.
 
 ## Asset Mapping
 
-Current poster images (text-free mood art) mapped to new genres:
+Poster images (text-free mood art) mapped to genres.
+Source JPGs are in ~/projects/petflix/generated-posters/
 
-| Genre | Asset Name | Image Description |
-|-------|-----------|-------------------|
-| Rise to Power | PosterSuperPaws | Heroic dog, dramatic lighting, city |
-| Betrayed | PosterCaptainWhiskers | Intense cat face, dramatic shadows |
-| Forbidden | PosterPawsAndPrejudice | Two pets, golden warm light |
-| The Throne | (NEEDS NEW POSTER) | Regal animal, crown, palace |
-| Unleashed | PosterCosmicPaws | Cat with glowing elements, energy |
-| Into the Unknown | Poster9To5Tails | (NEEDS NEW POSTER — fantasy/sci-fi) |
+| Genre | Asset Name | Source File | Image Description |
+|-------|-----------|-------------|-------------------|
+| Rise to Power | PosterRiseToPower | stray.jpg | Gritty dog, rainy neon city |
+| Betrayed | PosterBetrayed | crimson-court.jpg | Intense cat, dramatic shadows |
+| Forbidden | PosterForbidden | golden-hour.jpg | Two pets, golden meadow light |
+| The Throne | PosterTheThrone | the-throne.jpg | Regal cat with crown, palace |
+| Unleashed | PosterUnleashed | ember-reign.jpg | Armored dog, magic runes, glowing |
+| Into the Unknown | PosterIntoTheUnknown | into-the-unknown.jpg | Dog explorer, alien landscape |
 
-Note: Asset names are legacy. Eventually rename to match genres.
-Two posters need regeneration to match their genres.
+Claude Code: create imagesets from the source files above. Delete any
+legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 
 ---
 
@@ -234,7 +235,7 @@ Two posters need regeneration to match their genres.
 - "My Petflix" tab showing empty state
 - Profile photos hardcoded (Wiley and Rudy)
 - Add/Edit profile buttons as non-functional stubs
-- Genre mood images that don't perfectly match (temporary until regenerated)
+- Genre mood images are all generated and ready in generated-posters/
 
 ---
 

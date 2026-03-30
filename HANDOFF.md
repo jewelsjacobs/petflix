@@ -68,12 +68,12 @@ Petflix/
 │
 └── Assets.xcassets/
     ├── PetflixAppIcon.imageset/       App icon
-    ├── PosterSuperPaws.imageset/      Rise to Power mood image
-    ├── PosterCaptainWhiskers.imageset/ Betrayed mood image
-    ├── PosterPawsAndPrejudice.imageset/ Forbidden mood image
-    ├── PosterTopPupChef.imageset/     The Throne mood image (temporary)
-    ├── PosterCosmicPaws.imageset/     Unleashed mood image
-    ├── Poster9To5Tails.imageset/      Into the Unknown mood image (temporary)
+    ├── PosterRiseToPower.imageset/     Rise to Power mood image
+    ├── PosterBetrayed.imageset/       Betrayed mood image
+    ├── PosterForbidden.imageset/      Forbidden mood image
+    ├── PosterTheThrone.imageset/      The Throne mood image (temporary)
+    ├── PosterUnleashed.imageset/      Unleashed mood image
+    ├── PosterIntoTheUnknown.imageset/ Into the Unknown mood image (temporary)
     ├── ProfileRudy.imageset/          Pet profile photo (Rudy)
     └── ProfileWiley.imageset/         Pet profile photo (Wiley)
 ```
@@ -82,12 +82,12 @@ Petflix/
 
 | Genre | Trope | Font | Asset | Image Fit |
 |-------|-------|------|-------|-----------|
-| Rise to Power | Rags-to-riches | Cinzel Bold | PosterSuperPaws | Good |
-| Betrayed | Revenge / Betrayal | BlackOpsOne | PosterCaptainWhiskers | Good |
-| Forbidden | Forbidden romance | Playfair Italic | PosterPawsAndPrejudice | Good |
-| The Throne | Palace intrigue | Cinzel Bold | PosterTopPupChef | Temporary |
-| Unleashed | Supernatural / Powers | BlackOpsOne | PosterCosmicPaws | Good |
-| Into the Unknown | Sci-fi / Fantasy | Orbitron Bold | Poster9To5Tails | Temporary |
+| Rise to Power | Rags-to-riches | Cinzel Bold | PosterRiseToPower | Good |
+| Betrayed | Revenge / Betrayal | BlackOpsOne | PosterBetrayed | Good |
+| Forbidden | Forbidden romance | Playfair Italic | PosterForbidden | Good |
+| The Throne | Palace intrigue | Cinzel Bold | PosterTheThrone | Temporary |
+| Unleashed | Supernatural / Powers | BlackOpsOne | PosterUnleashed | Good |
+| Into the Unknown | Sci-fi / Fantasy | Orbitron Bold | PosterIntoTheUnknown | Temporary |
 
 The Throne and Into the Unknown use mood images that don't perfectly match their genres. Acceptable for v1. Regenerate when ready.
 

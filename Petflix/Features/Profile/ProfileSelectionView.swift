@@ -15,7 +15,7 @@ private struct HeroPoster {
 
 private let heroPosters: [HeroPoster] = [
     HeroPoster(
-        image: "PosterSuperPaws",
+        image: "PosterRiseToPower",
         titleLine1: "RISE TO", titleLine2: "POWER",
         line1Font: .custom("Cinzel-Bold", size: 34),
         line1Color: Color(red: 0.85, green: 0.75, blue: 0.5),
@@ -24,7 +24,7 @@ private let heroPosters: [HeroPoster] = [
         tracking1: 4, tracking2: 6
     ),
     HeroPoster(
-        image: "PosterCaptainWhiskers",
+        image: "PosterBetrayed",
         titleLine1: "BETRAYED", titleLine2: nil,
         line1Font: .custom("BlackOpsOne-Regular", size: 44),
         line1Color: .white,
@@ -33,7 +33,7 @@ private let heroPosters: [HeroPoster] = [
         tracking1: 4, tracking2: 0
     ),
     HeroPoster(
-        image: "PosterPawsAndPrejudice",
+        image: "PosterForbidden",
         titleLine1: "Forbidden", titleLine2: nil,
         line1Font: .custom("Playfair-Italic", size: 44),
         line1Color: Color(red: 1.0, green: 0.7, blue: 0.8),
@@ -42,7 +42,7 @@ private let heroPosters: [HeroPoster] = [
         tracking1: 2, tracking2: 0
     ),
     HeroPoster(
-        image: "PosterCosmicPaws",
+        image: "PosterUnleashed",
         titleLine1: "UNLEASHED", titleLine2: nil,
         line1Font: .custom("BlackOpsOne-Regular", size: 40),
         line1Color: Color(red: 0.3, green: 0.8, blue: 1.0),
@@ -51,7 +51,7 @@ private let heroPosters: [HeroPoster] = [
         tracking1: 4, tracking2: 0
     ),
     HeroPoster(
-        image: "PosterTopPupChef",
+        image: "PosterTheThrone",
         titleLine1: "THE", titleLine2: "THRONE",
         line1Font: .custom("Cinzel-Bold", size: 30),
         line1Color: Color(red: 0.85, green: 0.75, blue: 0.5),
@@ -60,7 +60,7 @@ private let heroPosters: [HeroPoster] = [
         tracking1: 4, tracking2: 6
     ),
     HeroPoster(
-        image: "Poster9To5Tails",
+        image: "PosterIntoTheUnknown",
         titleLine1: "INTO THE", titleLine2: "UNKNOWN",
         line1Font: .custom("Orbitron-Bold", size: 28),
         line1Color: Color(red: 0.3, green: 0.8, blue: 1.0),

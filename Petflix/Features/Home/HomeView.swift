@@ -15,49 +15,49 @@ struct GenreTemplate: Identifiable {
 let genreTemplates: [GenreTemplate] = [
     GenreTemplate(
         name: "Rise to Power",
-        tagline: "From nobody to ruler of everything.",
-        description: "Your pet goes from nobody to ruler of everything. Transformation arcs, humble origins, montage moments, and a triumphant rise to the top.",
-        imageName: "PosterSuperPaws",
+        tagline: "From nothing to everything.",
+        description: "Your pet starts at the bottom. No name, no status, no respect. But that's about to change — and not everyone's going to like it.",
+        imageName: "PosterRiseToPower",
         titleFont: .custom("Cinzel-Bold", size: 22),
         titleColor: .white
     ),
     GenreTemplate(
         name: "Betrayed",
-        tagline: "They were deceived. Now they want justice.",
-        description: "Your pet discovers they've been deceived. Shock, scheming, confrontation, and satisfying payback — a revenge arc that keeps you hooked.",
-        imageName: "PosterCaptainWhiskers",
+        tagline: "They took everything. Now it's personal.",
+        description: "Your pet trusted the wrong one. Now they know the truth — and they're not going to let it go.",
+        imageName: "PosterBetrayed",
         titleFont: .custom("BlackOpsOne-Regular", size: 20),
         titleColor: .white
     ),
     GenreTemplate(
         name: "Forbidden",
-        tagline: "A love that was never meant to be.",
-        description: "Your pet falls for someone they shouldn't. Stolen moments, impossible choices, and a love story that defies the odds.",
-        imageName: "PosterPawsAndPrejudice",
+        tagline: "The one they can't have.",
+        description: "Your pet just met someone who changes everything. But the world doesn't want them together. Some things are worth the risk.",
+        imageName: "PosterForbidden",
         titleFont: .custom("Playfair-Italic", size: 22),
         titleColor: .white
     ),
     GenreTemplate(
         name: "The Throne",
-        tagline: "Power. Alliances. Royal betrayal.",
-        description: "Your pet navigates a world of royal power, shifting alliances, and palace intrigue. Every court has its secrets.",
-        imageName: "PosterTopPupChef",
+        tagline: "One crown. Everyone wants it.",
+        description: "Your pet just entered a world of royals, rivals, and dangerous secrets. Trust no one. Bow to no one.",
+        imageName: "PosterTheThrone",
         titleFont: .custom("Cinzel-Bold", size: 22),
         titleColor: Color(red: 0.85, green: 0.75, blue: 0.5)
     ),
     GenreTemplate(
         name: "Unleashed",
-        tagline: "Abilities no one has ever seen.",
-        description: "Your pet discovers they have extraordinary abilities. Transformation, danger, and a showdown that changes everything.",
-        imageName: "PosterCosmicPaws",
+        tagline: "Something inside them just woke up.",
+        description: "Your pet was ordinary — until now. New powers. New enemies. And no idea how deep this goes.",
+        imageName: "PosterUnleashed",
         titleFont: .custom("BlackOpsOne-Regular", size: 20),
         titleColor: Color(red: 0.3, green: 0.8, blue: 1.0)
     ),
     GenreTemplate(
         name: "Into the Unknown",
-        tagline: "Strange new worlds await.",
-        description: "Strange new worlds. Ancient mysteries. Your pet ventures beyond the familiar into cosmic adventure and discovery.",
-        imageName: "Poster9To5Tails",
+        tagline: "What's out there is waiting.",
+        description: "A strange new world. An ancient mystery. Your pet is the only one brave enough to find out what happens next.",
+        imageName: "PosterIntoTheUnknown",
         titleFont: .custom("Orbitron-Bold", size: 18),
         titleColor: Color(red: 0.3, green: 0.8, blue: 1.0)
     ),

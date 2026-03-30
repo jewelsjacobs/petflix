@@ -87,15 +87,15 @@ Before presenting any UI change, verify:
 
 ## Asset Naming
 
-Poster assets use legacy names that DON'T match genre names:
-| Genre | Asset Name | Image Content |
-|-------|-----------|---------------|
-| Rise to Power | PosterSuperPaws | Heroic dog, dramatic lighting, city |
-| Betrayed | PosterCaptainWhiskers | Intense cat face, dramatic shadows |
-| Forbidden | PosterPawsAndPrejudice | Two pets, golden warm light |
-| The Throne | PosterTopPupChef | Black cat, noir city (temporary) |
-| Unleashed | PosterCosmicPaws | Cat with glowing elements, energy |
-| Into the Unknown | Poster9To5Tails | Armored dog, dark fantasy (temporary) |
+Poster assets — source JPGs in ~/projects/petflix/generated-posters/
+| Genre | Asset Name | Source File |
+|-------|-----------|-------------|
+| Rise to Power | PosterRiseToPower | stray.jpg |
+| Betrayed | PosterBetrayed | crimson-court.jpg |
+| Forbidden | PosterForbidden | golden-hour.jpg |
+| The Throne | PosterTheThrone | the-throne.jpg |
+| Unleashed | PosterUnleashed | ember-reign.jpg |
+| Into the Unknown | PosterIntoTheUnknown | into-the-unknown.jpg |
 
 Note: The Throne and Into the Unknown use images that don't perfectly match
 their genres. This is acceptable for v1 per PRODUCT_SPEC.md. Regenerate when ready.
