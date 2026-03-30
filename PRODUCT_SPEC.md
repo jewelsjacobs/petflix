@@ -8,11 +8,12 @@ Petflix is an iOS app for CREATING AI-generated microdrama episodes starring
 your own pet. It is a creation tool, not a streaming service.
 
 Users upload a photo of their pet, pick a dramatic genre/trope, and the app
-generates short cinematic episodes (60-90 seconds) starring their
-pet. Episodes are assembled server-side by Shotstack from pre-generated
-template images (with the user's pet swapped in), Ken Burns effects,
-voiceover narration, music, and text overlays — delivered as a playable
-MP4 video.
+generates short cinematic episodes (60-90 seconds) starring
+their pet. Episodes are assembled ON-DEVICE from pre-generated template
+images (with the user's pet identity transferred in), using AVFoundation
+to composite Ken Burns effects, voiceover narration, music, transitions,
+and text overlays into a playable video. No server-side rendering needed
+at playback time.
 
 The UI uses a dark theme with hot pink (#FF0080) accents.
 
@@ -134,34 +135,59 @@ Pet profile stores: name, photo, type (dog/cat for v1)
 
 ## Episode Architecture
 
-Episodes are NOT generated from scratch per-user. Instead:
+Episodes are NOT generated from scratch per-user. The architecture has
+three layers, designed to eliminate server-side rendering at playback
+and avoid API concurrency bottlenecks:
 
-1. TEMPLATE IMAGES are pre-generated and curated ahead of time. Each
-   series has a library of episode templates — 8-10 dramatic scene
-   images per episode featuring placeholder animals.
+### Layer 1: Pre-Generated Template Images (one-time, offline)
+- Each series has a library of episode templates: 8-10 dramatic scene
+  images per episode featuring placeholder animals
+- These are generated once using AI image tools (Qwen-Image, FLUX Pro,
+  local SDXL) and curated for quality
+- Stored in Supabase Storage or bundled with the app
+- Voiceover scripts, music tracks, and text overlays are also pre-authored
+- One-time cost: negligible (~$5-10 for all templates via fal.ai, or
+  free using Qwen-Image/local SDXL)
 
-2. PET SWAP at runtime. When a user taps 'Create Episode', the only
-   per-user AI work is swapping their pet's likeness into each template
-   image. The swap method (FLUX Kontext, IP-Adapter, or face-swap API)
-   is TBD pending quality testing.
+### Layer 2: Pet Identity Transfer (per-user, runs once per episode)
+- When a user taps 'Create Episode', the user's pet photo is used to
+  transfer their pet's likeness into each template image
+- The method for pet identity transfer is TBD pending quality testing.
+  Options under evaluation:
+  - FLUX Kontext (cloud, $0.04/image) — reference-image-guided editing
+  - IP-Adapter (could run on-device via Core ML) — reference-guided gen
+  - Custom compositing (on-device, $0) — detect/crop pet head, blend
+    onto template with masking
+- The ideal end-state is on-device processing (zero server calls, zero
+  API cost, zero concurrency issues) but this requires testing to confirm
+  quality is acceptable for animal faces
+- Fallback: cloud API via Supabase Edge Function if on-device quality
+  is insufficient
 
-3. VIDEO ASSEMBLY via Shotstack. The swapped images are sent to
-   Shotstack's API as a JSON timeline with Ken Burns pan/zoom effects,
-   crossfade transitions, TTS voiceover narration, background music,
-   and text overlays. Shotstack renders a finished MP4 server-side.
-
-4. The iOS app just plays the MP4 with AVPlayer. No custom playback
-   engine needed.
+### Layer 3: Video Assembly (on-device, AVFoundation)
+- The swapped images are composited into a playable video ON THE DEVICE
+  using Apple's AVFoundation framework
+- Ken Burns pan/zoom effects on each image
+- Crossfade transitions between scenes
+- TTS voiceover audio (pre-generated or on-device via Apple TTS)
+- Background music mixed in
+- Text overlay rendering with timing
+- Final output: a playable MP4 stored locally
+- NO server-side video rendering (no Shotstack, no Creatomate, no
+  Remotion) — this eliminates API concurrency limits entirely
+- AVFoundation is well-documented for this: AVMutableComposition +
+  AVAssetWriter + CALayer overlays
 
 The pet's profile photo serves double duty: cropped as a circular
-avatar throughout the UI, AND used as the source image for the pet
-swap step. There is NO separate image upload during episode creation.
+avatar throughout the UI, AND used as the source for pet identity
+transfer. There is NO separate image upload during episode creation.
 
-Cost per episode: ~$0.08-0.28 (pet swap) + ~$0.20-0.40 (Shotstack
-render) = ~$0.28-0.68 total.
-
-Generation time: ~15-30 seconds (swap) + ~15-30 seconds (render) =
-~30-60 seconds total.
+### Cost per episode (target)
+- On-device assembly: $0 (no server cost)
+- On-device pet transfer: $0 (if Core ML approach works)
+- Cloud pet transfer fallback: $0.08-0.32 (8 images x $0.01-0.04)
+- Best case total: $0 per episode (fully on-device)
+- Worst case total: $0.32 per episode (cloud pet transfer only)
 
 ---
 
@@ -215,13 +241,12 @@ This is a CREATION-FIRST screen, not a browse screen.
 ### Screen 4b: Episode Creation (future)
 - User taps 'Create Episode' on a series
 - App selects the next unwatched episode template from that series
-- User's pet photo is swapped into each template image (8-10 images)
-- Swapped images + episode script are sent to Shotstack via Edge Function
-- Shotstack renders the final MP4 with Ken Burns effects, transitions,
-  voiceover, music, and text overlays
-- User sees a progress indicator (~30-60 seconds)
-- Finished MP4 is stored in Supabase Storage and played via AVPlayer
-- No custom playback engine — just a standard video player
+- Pet identity is transferred into each template image (8-10 images)
+- AVFoundation assembles the final video on-device with Ken Burns
+  effects, transitions, voiceover, music, and text overlays
+- User sees a progress indicator during processing
+- Finished video is stored locally and played via AVPlayer
+- No server-side video rendering required
 
 ### Screen 5: My Petflix (Tab 2 — the ONLY other tab)
 - Shows all episodes the user has created, across all genres
@@ -289,9 +314,9 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 - Do NOT add features not in this spec without discussing first
 - Do NOT implement full AI video generation (Kling, Sora, etc.)
 - Do NOT generate episode scene images from scratch per-user — use
-  pre-generated templates + pet swap
-- Do NOT build a custom slideshow/playback engine — use Shotstack
-  for server-side video assembly and play the resulting MP4
+  pre-generated templates with pet identity transfer
+- Do NOT use server-side video rendering (Shotstack, Creatomate,
+  Remotion) — assemble on-device with AVFoundation
 - Do NOT add a community feed or social features in v1
 - Do NOT add sharing to social media in v1
 - Do NOT require a separate image upload for episode creation
@@ -306,9 +331,10 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 - Profile switching from Home screen must work
 - Genre mood images are all generated and ready in generated-posters/
 - No social sharing or community feed
-- Episodes use pre-generated templates + pet swap + Shotstack assembly
-- Pet swap method is TBD pending quality testing
-- Episode playback is just AVPlayer playing an MP4
+- Episodes use pre-generated templates + pet identity transfer +
+  on-device AVFoundation assembly
+- Pet identity transfer method is TBD pending quality testing
+- Episode playback is AVPlayer playing a locally-assembled MP4
 
 ---
 
