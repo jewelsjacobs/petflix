@@ -49,6 +49,36 @@ Do NOT give the first thing that comes to mind. Instead:
 - ALL UI elements must have proper padding and spacing. No text clipping,
   no cramped labels, no elements touching the screen edges.
 
+## Episode Architecture (READ THIS BEFORE BUILDING EPISODE FEATURES)
+
+Episodes are NOT generated from scratch per-user. The system has three layers:
+
+1. PRE-GENERATED TEMPLATES: Episode images are created offline and stored
+   in Supabase Storage. Each series has 8-10 template images per episode
+   featuring placeholder animals in dramatic scenes. These are curated
+   for quality and never regenerated per-user.
+
+2. PET IDENTITY TRANSFER: At runtime, the user's pet profile photo is
+   used to transfer their pet's likeness into each template image. The
+   method is TBD (FLUX Kontext, Core ML IP-Adapter, or custom compositing).
+   The goal is ON-DEVICE processing via Core ML to eliminate server costs
+   and concurrency limits. Cloud fallback via Supabase Edge Function if
+   on-device quality is insufficient.
+
+3. ON-DEVICE VIDEO ASSEMBLY: Swapped images are composited into a playable
+   MP4 ON THE DEVICE using AVFoundation. Ken Burns effects, transitions,
+   voiceover audio, background music, and text overlays. No server-side
+   video rendering (no Shotstack, no Creatomate). AVPlayer plays the result.
+
+The pet's profile photo serves double duty: avatar icon AND source for
+pet identity transfer. No separate upload during episode creation.
+
+DO NOT:
+- Implement server-side video rendering
+- Generate episode images from scratch per-user
+- Use Kling, Sora, or any full video generation API
+- Build episode features without reading PRODUCT_SPEC.md and BACKEND_SPEC.md
+
 ## UI Polish Rules
 
 Every screen must look professional. Before presenting any UI change, check:
@@ -89,6 +119,9 @@ Before presenting any UI change, verify:
 - [ ] Only 2 tabs exist: Home and My Petflix
 - [ ] The creation flow is obvious: tap series → create episode
 - [ ] No jargon in descriptions (no "arc", "trope", "narrative", "genre", "drama")
+- [ ] Episode features use pre-generated templates, not per-user generation
+- [ ] No server-side video rendering in the pipeline
+- [ ] Pet identity transfer uses the profile photo, not a separate upload
 
 ## Technical Reference
 
@@ -102,6 +135,11 @@ Before presenting any UI change, verify:
 - **Background**: Near-black #141414
 - **Logo font**: Bebas Neue
 - **Body text**: System default (SF Pro)
+- **Video assembly:** AVFoundation (AVMutableComposition + AVAssetWriter)
+- **Video playback:** AVPlayer
+- **Pet identity transfer:** TBD (Core ML on-device preferred, fal.ai cloud fallback)
+- **Episode templates:** Pre-generated, stored in Supabase Storage
+- **No server-side rendering:** No Shotstack, no Creatomate, no Remotion
 
 ## File Structure
 
