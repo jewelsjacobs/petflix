@@ -1,4 +1,4 @@
-# Petflix Project Handoff — Updated March 29, 2026 (evening session)
+# Petflix Project Handoff — Updated March 29, 2026 (evening)
 
 ## What Is Petflix?
 
@@ -74,9 +74,9 @@ Petflix/
     ├── PosterRiseToPower.imageset/     Rise to Power mood image
     ├── PosterBetrayed.imageset/       Betrayed mood image
     ├── PosterForbidden.imageset/      Forbidden mood image
-    ├── PosterTheThrone.imageset/      The Throne mood image (temporary)
+    ├── PosterTheThrone.imageset/      The Throne mood image (Qwen-Image)
     ├── PosterUnleashed.imageset/      Unleashed mood image
-    ├── PosterIntoTheUnknown.imageset/ Into the Unknown mood image (temporary)
+    ├── PosterIntoTheUnknown.imageset/ Into the Unknown mood image (Qwen-Image)
     ├── ProfileRudy.imageset/          Pet profile photo (Rudy)
     └── ProfileWiley.imageset/         Pet profile photo (Wiley)
 ```
@@ -163,12 +163,17 @@ Petflix/
 - Supabase backend: project created (petflix), database schema deployed (profiles, episodes, generation_budget tables), RLS policies active
 
 ### Not Built Yet
-- **AI pipeline:** Script generation, pet detection, video generation — no code
-- **Auth:** Apple Sign In not yet integrated with Supabase
-- **Profile sync:** Profiles are local-only (not synced to Supabase yet)
-- **Photo upload:** Works for profiles, not yet for episode creation
-- **Video playback:** No player
-- **Social/sharing:** No community feed or share functionality
+- **Pet identity transfer:** Method TBD — testing needed with FLUX
+  Kontext (cloud) and Core ML (on-device) for animal face identity
+- **Episode templates:** Pre-generated template images not yet created
+  for any series
+- **Video assembly:** AVFoundation pipeline for on-device compositing
+  (Ken Burns effects, transitions, audio mixing, text overlays)
+- **Video playback:** AVPlayer-based episode player
+- **Voiceover/TTS:** Narration audio generation (Apple TTS or ElevenLabs)
+- **Auth:** Apple Sign In + Supabase Auth not integrated in iOS app yet
+- **Profile sync:** Profiles are local-only (UserDefaults), not synced
+  to Supabase yet
 
 ---
 
