@@ -8,7 +8,10 @@ Petflix is an iOS app for CREATING AI-generated microdrama episodes starring
 your own pet. It is a creation tool, not a streaming service.
 
 Users upload a photo of their pet, pick a dramatic genre/trope, and the app
-generates short cinematic episodes (60-90 seconds) with their pet as the star.
+generates short cinematic episodes (60-90 seconds) — sequences of
+pre-generated dramatic AI images with the user's pet swapped in, presented
+with Ken Burns pan/zoom effects, voiceover narration, music, and text
+overlays — starring their pet.
 
 The UI uses a dark theme with hot pink (#FF0080) accents.
 
@@ -128,6 +131,25 @@ Always use "pet" or "your pet." This makes species expansion seamless.
 
 Pet profile stores: name, photo, type (dog/cat for v1)
 
+The pet's profile photo serves double duty: cropped as a circular avatar
+throughout the UI, AND used as the source for subject-swap when generating
+episodes. There is NO separate image upload step during episode creation.
+
+Episode Generation Architecture:
+- Episode template images are PRE-GENERATED and curated ahead of time
+- Each series has a library of template episode images (8-10 per episode)
+  featuring placeholder animals in dramatic scenes
+- These templates are generated once, stored in Supabase Storage, and
+  never regenerated per-user
+- At runtime, when a user taps 'Create Episode', the ONLY thing that
+  happens is their pet's likeness gets swapped into each template image
+- This means episode creation is fast (~8-24 seconds) and cheap
+  (~$0.08-0.28 per episode) since only the swap step runs per-user
+- The swap method (FLUX Kontext, face-swap API, or IP-Adapter) is TBD
+  pending quality testing
+- Template images are curated for quality — every user gets the same
+  cinematic compositions
+
 ---
 
 ## App Screens
@@ -176,6 +198,18 @@ This is a CREATION-FIRST screen, not a browse screen.
 - Below: Episodes the user has created in this series
   - Empty state for v1: "No episodes yet. Create your first!"
 - NO episode grid of pre-made content (doesn't exist)
+
+### Screen 4b: Episode Creation (future)
+- User taps 'Create Episode' on a series
+- App selects the next unwatched episode template from that series
+- User's pet photo is swapped into each template image (~8-10 images)
+- Images are presented as a cinematic sequence with Ken Burns effects
+- AI-generated voiceover narration tells the story
+- Dramatic music and sound effects layered in
+- Title cards and text overlays between scenes
+- Total generation time target: 8-24 seconds (swap only, not full gen)
+- No video generation — too expensive and slow (see FEASIBILITY_CHECK.md)
+- No separate photo upload — uses the pet's profile photo
 
 ### Screen 5: My Petflix (Tab 2 — the ONLY other tab)
 - Shows all episodes the user has created, across all genres
@@ -241,6 +275,11 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 - Do NOT duplicate mood images across the UI
 - Do NOT use system fonts for genre titles — use custom cinematic fonts
 - Do NOT add features not in this spec without discussing first
+- Do NOT implement full video generation (Kling, Sora, etc.) — see FEASIBILITY_CHECK.md
+- Do NOT generate episode images from scratch per-user — use pre-gen templates + swap
+- Do NOT add a community feed or social features in v1
+- Do NOT add sharing to social media in v1
+- Do NOT require a separate image upload for episode creation — use the profile photo
 
 ## What IS Acceptable for v1
 
@@ -251,6 +290,9 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 - Edit/delete profiles must work
 - Profile switching from Home screen must work
 - Genre mood images are all generated and ready in generated-posters/
+- No social sharing or community feed
+- Episodes use pre-generated template images with pet subject-swap
+- Swap method is TBD pending quality testing
 
 ---
 
@@ -258,5 +300,4 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 
 - Users creating 3+ episodes in first session
 - Users returning within 48 hours
-- Users sharing episodes to social media
 - Genre diversity in created episodes (not all one genre)
