@@ -8,10 +8,11 @@ Petflix is an iOS app for CREATING AI-generated microdrama episodes starring
 your own pet. It is a creation tool, not a streaming service.
 
 Users upload a photo of their pet, pick a dramatic genre/trope, and the app
-generates short cinematic episodes (60-90 seconds) — sequences of
-pre-generated dramatic AI images with the user's pet swapped in, presented
-with Ken Burns pan/zoom effects, voiceover narration, music, and text
-overlays — starring their pet.
+generates short cinematic episodes (60-90 seconds) starring their
+pet. Episodes are assembled server-side by Shotstack from pre-generated
+template images (with the user's pet swapped in), Ken Burns effects,
+voiceover narration, music, and text overlays — delivered as a playable
+MP4 video.
 
 The UI uses a dark theme with hot pink (#FF0080) accents.
 
@@ -131,24 +132,36 @@ Always use "pet" or "your pet." This makes species expansion seamless.
 
 Pet profile stores: name, photo, type (dog/cat for v1)
 
-The pet's profile photo serves double duty: cropped as a circular avatar
-throughout the UI, AND used as the source for subject-swap when generating
-episodes. There is NO separate image upload step during episode creation.
+## Episode Architecture
 
-Episode Generation Architecture:
-- Episode template images are PRE-GENERATED and curated ahead of time
-- Each series has a library of template episode images (8-10 per episode)
-  featuring placeholder animals in dramatic scenes
-- These templates are generated once, stored in Supabase Storage, and
-  never regenerated per-user
-- At runtime, when a user taps 'Create Episode', the ONLY thing that
-  happens is their pet's likeness gets swapped into each template image
-- This means episode creation is fast (~8-24 seconds) and cheap
-  (~$0.08-0.28 per episode) since only the swap step runs per-user
-- The swap method (FLUX Kontext, face-swap API, or IP-Adapter) is TBD
-  pending quality testing
-- Template images are curated for quality — every user gets the same
-  cinematic compositions
+Episodes are NOT generated from scratch per-user. Instead:
+
+1. TEMPLATE IMAGES are pre-generated and curated ahead of time. Each
+   series has a library of episode templates — 8-10 dramatic scene
+   images per episode featuring placeholder animals.
+
+2. PET SWAP at runtime. When a user taps 'Create Episode', the only
+   per-user AI work is swapping their pet's likeness into each template
+   image. The swap method (FLUX Kontext, IP-Adapter, or face-swap API)
+   is TBD pending quality testing.
+
+3. VIDEO ASSEMBLY via Shotstack. The swapped images are sent to
+   Shotstack's API as a JSON timeline with Ken Burns pan/zoom effects,
+   crossfade transitions, TTS voiceover narration, background music,
+   and text overlays. Shotstack renders a finished MP4 server-side.
+
+4. The iOS app just plays the MP4 with AVPlayer. No custom playback
+   engine needed.
+
+The pet's profile photo serves double duty: cropped as a circular
+avatar throughout the UI, AND used as the source image for the pet
+swap step. There is NO separate image upload during episode creation.
+
+Cost per episode: ~$0.08-0.28 (pet swap) + ~$0.20-0.40 (Shotstack
+render) = ~$0.28-0.68 total.
+
+Generation time: ~15-30 seconds (swap) + ~15-30 seconds (render) =
+~30-60 seconds total.
 
 ---
 
@@ -202,14 +215,13 @@ This is a CREATION-FIRST screen, not a browse screen.
 ### Screen 4b: Episode Creation (future)
 - User taps 'Create Episode' on a series
 - App selects the next unwatched episode template from that series
-- User's pet photo is swapped into each template image (~8-10 images)
-- Images are presented as a cinematic sequence with Ken Burns effects
-- AI-generated voiceover narration tells the story
-- Dramatic music and sound effects layered in
-- Title cards and text overlays between scenes
-- Total generation time target: 8-24 seconds (swap only, not full gen)
-- No video generation — too expensive and slow (see FEASIBILITY_CHECK.md)
-- No separate photo upload — uses the pet's profile photo
+- User's pet photo is swapped into each template image (8-10 images)
+- Swapped images + episode script are sent to Shotstack via Edge Function
+- Shotstack renders the final MP4 with Ken Burns effects, transitions,
+  voiceover, music, and text overlays
+- User sees a progress indicator (~30-60 seconds)
+- Finished MP4 is stored in Supabase Storage and played via AVPlayer
+- No custom playback engine — just a standard video player
 
 ### Screen 5: My Petflix (Tab 2 — the ONLY other tab)
 - Shows all episodes the user has created, across all genres
@@ -275,11 +287,14 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 - Do NOT duplicate mood images across the UI
 - Do NOT use system fonts for genre titles — use custom cinematic fonts
 - Do NOT add features not in this spec without discussing first
-- Do NOT implement full video generation (Kling, Sora, etc.) — see FEASIBILITY_CHECK.md
-- Do NOT generate episode images from scratch per-user — use pre-gen templates + swap
+- Do NOT implement full AI video generation (Kling, Sora, etc.)
+- Do NOT generate episode scene images from scratch per-user — use
+  pre-generated templates + pet swap
+- Do NOT build a custom slideshow/playback engine — use Shotstack
+  for server-side video assembly and play the resulting MP4
 - Do NOT add a community feed or social features in v1
 - Do NOT add sharing to social media in v1
-- Do NOT require a separate image upload for episode creation — use the profile photo
+- Do NOT require a separate image upload for episode creation
 
 ## What IS Acceptable for v1
 
@@ -291,8 +306,9 @@ legacy-named imagesets (PosterCaptainWhiskers, PosterSuperPaws, etc.)
 - Profile switching from Home screen must work
 - Genre mood images are all generated and ready in generated-posters/
 - No social sharing or community feed
-- Episodes use pre-generated template images with pet subject-swap
-- Swap method is TBD pending quality testing
+- Episodes use pre-generated templates + pet swap + Shotstack assembly
+- Pet swap method is TBD pending quality testing
+- Episode playback is just AVPlayer playing an MP4
 
 ---
 
