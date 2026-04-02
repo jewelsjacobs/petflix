@@ -332,6 +332,148 @@ class TestRunner {
         isRunning = false
         currentStep = ""
     }
+
+    // MARK: - Phase 3: Full Episode Generation
+
+    func runEpisodeGeneration() async {
+        isRunning = true
+        sceneResults = []
+
+        let episodeDir = "\(outputDir)/episode-throne-1"
+        try? FileManager.default.createDirectory(atPath: episodeDir, withIntermediateDirectories: true)
+
+        // Load Wiley's FM description
+        let descPath = "\(outputDir)/fm-wiley-description.txt"
+        let petDesc: String
+        do {
+            petDesc = try String(contentsOfFile: descPath, encoding: String.Encoding.utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            log("FATAL: Could not load pet description from \(descPath): \(error)")
+            isRunning = false
+            return
+        }
+
+        log("━━━ Phase 3: The Throne — The Arrival (8 scenes) ━━━")
+        log("Pet description: \(petDesc)")
+        log("Output directory: \(episodeDir)")
+
+        // Check ImageCreator
+        let icAvailable = ImagePlaygroundViewController.isAvailable
+        guard icAvailable else {
+            log("FATAL: ImageCreator not available")
+            isRunning = false
+            return
+        }
+
+        let creator: ImageCreator
+        do {
+            creator = try await ImageCreator()
+            log("ImageCreator initialized")
+        } catch {
+            log("FATAL: Cannot create ImageCreator: \(error)")
+            isRunning = false
+            return
+        }
+
+        // Define 8 scenes
+        let scenePrompts: [(id: String, filename: String, prompt: String)] = [
+            ("Scene 1", "scene-01.png",
+             "\(petDesc), standing outside massive ornate palace gates at golden sunset, looking up in awe, dramatic low angle, cinematic wide shot"),
+            ("Scene 2", "scene-02.png",
+             "\(petDesc), walking through a grand ornate palace hallway lit by candles, golden warm light, rich tapestries on walls, cinematic"),
+            ("Scene 3", "scene-03.png",
+             "\(petDesc), sitting alone at the far end of an enormous banquet table in a dark palace dining hall, dramatic overhead light, shadows"),
+            ("Scene 4", "scene-04.png",
+             "Extreme close-up of \(petDesc), a golden crown reflected in its eyes, dramatic half-lighting, intense royal atmosphere"),
+            ("Scene 5", "scene-05.png",
+             "\(petDesc), standing in a grand throne room, facing an empty ornate golden throne, dramatic beam of light from above, vast space"),
+            ("Scene 6", "scene-06.png",
+             "\(petDesc), sitting regally on an ornate golden throne, surrounded by lit candles and medieval tapestries, warm golden light"),
+            ("Scene 7", "scene-07.png",
+             "Dark silhouette of a mysterious cat watching from a shadowy stone doorway in a palace, backlit by torchlight, ominous mood, spy perspective"),
+            ("Scene 8", "scene-08.png",
+             "Close-up of \(petDesc), in dramatic half-light, intense determined expression, orange glow of fire in the background, cinematic"),
+        ]
+
+        let overallStart = CFAbsoluteTimeGetCurrent()
+        var successCount = 0
+
+        for (index, scene) in scenePrompts.enumerated() {
+            currentStep = "\(scene.id) of 8..."
+            log("━━━ \(scene.id) ━━━")
+            log("  Prompt: \(scene.prompt)")
+
+            let concepts: [ImagePlaygroundConcept] = [.text(scene.prompt)]
+            let start = CFAbsoluteTimeGetCurrent()
+
+            do {
+                var generatedImage: CGImage?
+                for try await created in creator.images(for: concepts, style: .animation, limit: 1) {
+                    generatedImage = created.cgImage
+                    break
+                }
+                let elapsed = CFAbsoluteTimeGetCurrent() - start
+
+                guard let finalImage = generatedImage else {
+                    log("  ⚠️  No image returned (\(String(format: "%.1f", elapsed))s)")
+                    sceneResults.append(SceneResult(id: scene.id, petName: "Wiley", prompt: scene.prompt,
+                                                     image: nil, elapsed: elapsed, error: "No image returned", savedPath: nil))
+                    continue
+                }
+
+                let savePath = "\(episodeDir)/\(scene.filename)"
+                let saved = saveCGImage(finalImage, to: savePath)
+
+                // Get file size
+                var sizeStr = "unknown"
+                if let attrs = try? FileManager.default.attributesOfItem(atPath: savePath),
+                   let size = attrs[.size] as? Int {
+                    sizeStr = "\(size / 1024)KB"
+                }
+
+                log("  ✅ Generated: \(finalImage.width)×\(finalImage.height) in \(String(format: "%.1f", elapsed))s")
+                if saved { log("  💾 Saved: \(savePath) (\(sizeStr))") }
+                successCount += 1
+
+                sceneResults.append(SceneResult(id: scene.id, petName: "Wiley", prompt: scene.prompt,
+                                                 image: finalImage, elapsed: elapsed, error: nil,
+                                                 savedPath: saved ? savePath : nil))
+
+            } catch {
+                let elapsed = CFAbsoluteTimeGetCurrent() - start
+                let errorMsg = String(describing: error)
+                let nsError = error as NSError
+                log("  ❌ Generation failed (\(String(format: "%.1f", elapsed))s)")
+                log("    Error: \(errorMsg)")
+                log("    Domain: \(nsError.domain), Code: \(nsError.code)")
+                log("    Localized: \(nsError.localizedDescription)")
+                if let underlying = nsError.userInfo[NSUnderlyingErrorKey] {
+                    log("    Underlying: \(underlying)")
+                }
+                sceneResults.append(SceneResult(id: scene.id, petName: "Wiley", prompt: scene.prompt,
+                                                 image: nil, elapsed: elapsed, error: errorMsg, savedPath: nil))
+            }
+
+            // 5s delay between generations
+            if index < scenePrompts.count - 1 {
+                log("  ⏳ Waiting 5s before next scene...")
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
+        }
+
+        let totalTime = CFAbsoluteTimeGetCurrent() - overallStart
+
+        log("")
+        log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        log("SUMMARY: The Throne — The Arrival")
+        log("  Total scenes generated: \(successCount)/8")
+        log("  Total time: \(String(format: "%.1f", totalTime))s")
+        log("  Output directory: \(episodeDir)")
+        log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        isRunning = false
+        currentStep = ""
+    }
 }
 
 func saveCGImage(_ cgImage: CGImage, to path: String) -> Bool {
@@ -411,6 +553,20 @@ struct ContentView: View {
                 .tint(.purple)
                 .controlSize(.regular)
                 .disabled(runner.isRunning || runner.descriptionResults.isEmpty)
+
+                Divider()
+
+                Button("3. Generate Episode: The Throne") {
+                    Task { await runner.runEpisodeGeneration() }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .controlSize(.large)
+                .disabled(runner.isRunning)
+
+                Text("Generates 8 scenes using Wiley's FM description.\nLoads from test-outputs/fm-wiley-description.txt")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal)
 

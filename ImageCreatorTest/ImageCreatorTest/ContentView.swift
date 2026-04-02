@@ -435,13 +435,19 @@ func saveCGImage(_ cgImage: CGImage, to path: String) -> Bool {
 
 struct ContentView: View {
     @State private var runner = TestRunner()
+    @State private var pipelineRunner = FullPipelineRunner()
+    @State private var showPipeline = false
 
     var body: some View {
         NavigationSplitView {
             sidebar
                 .navigationSplitViewColumnWidth(min: 320, ideal: 360)
         } detail: {
-            detail
+            if showPipeline {
+                pipelineDetail
+            } else {
+                detail
+            }
         }
         .task {
             await runner.checkAvailability()
@@ -486,19 +492,30 @@ struct ContentView: View {
                     }
                 }
 
+                Button("Full Pipeline (Throne E01)") {
+                    showPipeline = true
+                    Task { await pipelineRunner.runFullPipeline() }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+                .disabled(runner.isRunning || pipelineRunner.isRunning || !runner.isAvailable)
+                .controlSize(.large)
+
                 HStack(spacing: 8) {
                     Button("Phase 1C") {
+                        showPipeline = false
                         Task { await runner.runAllTests() }
                     }
                     .buttonStyle(.bordered)
 
                     Button("Phase 2C+2D") {
+                        showPipeline = false
                         Task { await runner.runPhase2AllTests() }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.pink)
                 }
-                .disabled(runner.isRunning || !runner.isAvailable)
+                .disabled(runner.isRunning || pipelineRunner.isRunning || !runner.isAvailable)
                 .controlSize(.large)
 
                 HStack(spacing: 8) {
@@ -642,6 +659,110 @@ struct ContentView: View {
                 }
                 .padding()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var pipelineDetail: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Header
+                HStack {
+                    Text("Full Pipeline: The Throne E01")
+                        .font(.title2.bold())
+                    Spacer()
+                    if pipelineRunner.isRunning {
+                        ProgressView().controlSize(.small)
+                        Text(pipelineRunner.progress)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else if pipelineRunner.isComplete {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("Complete")
+                            .foregroundStyle(.green)
+                    } else if pipelineRunner.didFail {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                        Text("Failed")
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                // Stats
+                if pipelineRunner.isComplete {
+                    GroupBox("Results") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Scenes generated:")
+                                Spacer()
+                                Text("\(pipelineRunner.scenesGenerated)")
+                                    .monospacedDigit()
+                            }
+                            HStack {
+                                Text("Video duration:")
+                                Spacer()
+                                Text(String(format: "%.1fs", pipelineRunner.videoDuration))
+                                    .monospacedDigit()
+                            }
+                            HStack {
+                                Text("Assembly time:")
+                                Spacer()
+                                Text(String(format: "%.2fs", pipelineRunner.assemblyTime))
+                                    .monospacedDigit()
+                            }
+                            HStack {
+                                Text("File size:")
+                                Spacer()
+                                Text(pipelineRunner.fileSize)
+                                    .monospacedDigit()
+                            }
+                            HStack {
+                                Text("Output:")
+                                Spacer()
+                                Text(pipelineRunner.outputPath)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .padding(4)
+                    }
+                }
+
+                // Progress
+                if pipelineRunner.isRunning {
+                    GroupBox("Progress") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(pipelineRunner.currentPhase)
+                                .font(.headline)
+                            if pipelineRunner.totalScenes > 0 {
+                                ProgressView(value: Double(pipelineRunner.scenesGenerated), total: Double(pipelineRunner.totalScenes))
+                                Text("\(pipelineRunner.scenesGenerated)/\(pipelineRunner.totalScenes) scenes")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(4)
+                    }
+                }
+
+                // Log
+                GroupBox("Log") {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(pipelineRunner.statusLog.indices, id: \.self) { i in
+                                Text(pipelineRunner.statusLog[i])
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 400)
+                }
+            }
+            .padding()
         }
     }
 

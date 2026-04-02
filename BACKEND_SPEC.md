@@ -211,7 +211,10 @@ generates breed-specific descriptions from pet photos on-device.
 Result: Recognition 5/5 for both Wiley and Rudy. PERFECT SCORES.
 This is the production pipeline. See PET_DESCRIPTION_RESEARCH.md.
 
-**Phase 3:** Generate 8 episode scene images for "The Throne" series.
+**Phase 3 (COMPLETED):** Generated all 8 scene images for "The Throne:
+The Arrival" episode using Wiley's Foundation Models description.
+All 8 scenes generated successfully. Wiley identity consistent across
+all scenes. Output in test-outputs/episode-throne-1/scene-01 through 08.
 
 **Phase 4:** Build AVFoundation video assembly pipeline (Ken Burns,
 transitions, TTS, text overlays). Target: < 15 seconds assembly time.

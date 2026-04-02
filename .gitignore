@@ -2,11 +2,31 @@
 .DS_Store
 *.xcuserstate
 
-# Test outputs (large generated images)
-test-outputs/*.png
-
 # Xcode
 xcuserdata/
 DerivedData/
 build/
 *.xcscmblueprint
+
+# Test outputs (generated images, videos, masks — large binary files)
+test-outputs/
+test-outputs/**/*.png
+test-outputs/**/*.mp4
+test-outputs/**/*.jpg
+
+# Generated posters (large image files — tracked separately if needed)
+generated-posters/
+
+# Test photos (user's actual pet photos — privacy)
+test-photos/
+
+# Hugging Face model cache
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Compiled test scripts
+/tmp/test-*
