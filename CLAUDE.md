@@ -172,3 +172,6 @@ Poster assets in ~/projects/petflix/generated-posters/:
 - When suggesting bash commands, create a .sh script and ask permission.
 - For multi-file changes: present a PLAN first, wait for approval, then execute.
 - Clean up after yourself — delete old/orphaned files when restructuring.
+- **Commit and push after every completed task.** Use descriptive commit messages.
+- **Keep docs current.** After any architecture or pipeline change, update CLAUDE.md,
+  README.md, and any affected spec docs. Stale docs cause downstream errors.
